@@ -750,3 +750,70 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Styles pour les formulaires sur le fond 3D */
+.form-input {
+  @apply bg-white/10 border border-white/20 text-white placeholder-white/50 rounded-lg;
+}
+
+.form-input:focus {
+  @apply ring-2 ring-blue-500/50 border-blue-500/50 bg-white/15;
+}
+
+/* Animation pour les boutons */
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-3 px-6 rounded-lg 
+         hover:from-blue-700 hover:to-purple-700 transition-all duration-300 
+         hover:shadow-lg hover:shadow-blue-500/25;
+}
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Pour améliorer la visibilité en mode sombre */
+.dark .canvas-container canvas {
+  filter: brightness(1.2) contrast(1.1);
+}
+
+/* Effet de brillance pour les éléments 3D */
+.glow-effect {
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3));
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, hsl(var(--brand)), #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
