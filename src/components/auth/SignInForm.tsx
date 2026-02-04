@@ -36,7 +36,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       // Optionnel : on peut vider le mot de passe pour la sécurité
     } 
     else if (response.accessToken) {
-      router.push("/");
+      router.push("/home");
     }
   } catch (err: any) {
     setError(err.message || "Une erreur est survenue lors de la connexion.");
