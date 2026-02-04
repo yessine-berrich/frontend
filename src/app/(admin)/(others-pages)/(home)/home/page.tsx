@@ -1,5 +1,7 @@
+import BarChartOne from "@/components/charts/bar/BarChartOne";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import HomePage from "@/components/home/home";
+import { BarChart2Icon } from "lucide-react";
 import { Metadata } from "next";
 import React from "react";
 
@@ -12,6 +14,7 @@ export default function BlankPage() {
   return (
     <div>
       <HomePage />
+      
     </div>
   );
 }
