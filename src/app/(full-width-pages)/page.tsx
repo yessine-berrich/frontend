@@ -1,99 +1,291 @@
+'use client';
 
-import React from 'react';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
+import {
+  BookOpen,
+  Sparkles,
+  Users,
+  Brain,
+  Search,
+  Trophy,
+  ArrowRight,
+  CheckCircle,
+} from 'lucide-react';
 
-export default function Ecommerce() {
+const features = [
+  {
+    icon: Brain,
+    title: 'Intelligence Artificielle',
+    description: 'Génération et amélioration de contenu assistées par IA',
+  },
+  {
+    icon: Search,
+    title: 'Recherche Sémantique',
+    description: 'Trouvez instantanément les informations pertinentes',
+  },
+  {
+    icon: Users,
+    title: 'Collaboration',
+    description: 'Travaillez en équipe sur vos articles et projets',
+  },
+  {
+    icon: Trophy,
+    title: 'Gamification',
+    description: 'Gagnez des badges et montez dans le classement',
+  },
+];
+
+const benefits = [
+  'Centralisation de toutes vos connaissances',
+  'Accès rapide à l\'information',
+  'Collaboration en temps réel',
+  'Analyse et statistiques détaillées',
+  'Sécurité et confidentialité garanties',
+];
+
+export default function Welcome() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-     
-
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Hero Section */}
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
-            Centralisez le savoir,
-            <span className="text-blue-600 dark:text-blue-400"> propulsez l'innovation</span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 dark:text-gray-300 mb-10 leading-relaxed">
-            KnowHub est la plateforme collaborative qui capture, organise et partage 
-            les connaissances de votre entreprise. Mettez fin à la dispersion de l'information 
-            et libérez le potentiel collectif de vos équipes.
-          </p>
+      <div className="relative overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 opacity-50" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-200/30 dark:bg-blue-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-200/30 dark:bg-purple-500/20 rounded-full blur-3xl" />
 
-          {/* Features Grid */}
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
-                <span className="text-blue-600 dark:text-blue-300 text-2xl">🧠</span>
+        <div className="relative container mx-auto px-4 py-20">
+          {/* Header */}
+          <motion.nav
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between mb-20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <BookOpen className="h-6 w-6 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">
-                IA Intelligente
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Recherche sémantique et chatbot RAG qui comprend le contexte de vos documents
-              </p>
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                KnowledgeHub
+              </span>
             </div>
-
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
-                <span className="text-green-600 dark:text-green-300 text-2xl">🤝</span>
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">
-                Collaboration
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Système de commentaires, mentions et validation collaborative des articles
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
-                <span className="text-purple-600 dark:text-purple-300 text-2xl">🎮</span>
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">
-                Gamification
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Score de performance et récompenses pour motiver les contributions
-              </p>
-            </div>
-          </div>
-
-          {/* Call to Action */}
-          <div className="space-y-4">
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-white">
-              Prêt à transformer la gestion des connaissances dans votre entreprise ?
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-8">
-              Rejoignez dès maintenant la plateforme qui préserve et valorise le savoir-faire de votre organisation.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/signup"
-                className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-              >
-                Commencer gratuitement
+            <div className="flex items-center gap-4">
+              <Link href="/signin">
+                <button className="px-6 py-2.5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                  Se connecter
+                </button>
               </Link>
-              <Link
-                href="/signin"
-                className="px-8 py-3 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
-              >
-                Se connecter
+              <Link href="/signup">
+                <button className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-opacity shadow-md">
+                  Créer un compte
+                </button>
               </Link>
             </div>
+          </motion.nav>
+
+          {/* Hero Content */}
+          <div className="text-center max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mb-6"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                Propulsé par l'Intelligence Artificielle
+              </span>
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6 text-gray-900 dark:text-white"
+            >
+              Votre plateforme de{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                gestion des connaissances
+              </span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-10 max-w-2xl mx-auto"
+            >
+              KnowledgeHub est une solution collaborative innovante qui permet à
+              votre entreprise de capturer, organiser et partager le savoir
+              collectif avec l'aide de l'intelligence artificielle.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            >
+              <Link href="/signup">
+                <button className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 min-w-[200px] justify-center">
+                  Commencer gratuitement
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              </Link>
+              <Link href="/signin">
+                <button className="px-8 py-3.5 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors min-w-[200px]">
+                  J'ai déjà un compte
+                </button>
+              </Link>
+            </motion.div>
           </div>
 
+          {/* Stats */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="grid grid-cols-3 gap-8 max-w-2xl mx-auto mt-20"
+          >
+            <div className="text-center">
+              <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">2.5K+</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Articles créés
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">500+</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Utilisateurs actifs
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">98%</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Satisfaction
+              </p>
+            </div>
+          </motion.div>
         </div>
-      </main>
+      </div>
+
+      {/* Features Section */}
+      <section className="py-20 bg-gray-50 dark:bg-gray-800/30">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
+              Fonctionnalités principales
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
+              Découvrez les outils puissants qui transformeront la gestion du
+              savoir dans votre organisation
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="p-6 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+              >
+                <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
+                  <feature.icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                  {feature.title}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {feature.description}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">
+                Pourquoi choisir KnowledgeHub ?
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-8">
+                Notre plateforme offre une solution complète pour gérer,
+                partager et enrichir les connaissances de votre organisation de
+                manière collaborative et intelligente.
+              </p>
+              <ul className="space-y-4">
+                {benefits.map((benefit, index) => (
+                  <motion.li
+                    key={benefit}
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center gap-3"
+                  >
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700 dark:text-gray-300">{benefit}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative"
+            >
+              <div className="aspect-square rounded-3xl bg-gradient-to-r from-blue-600 to-purple-600 p-8 flex items-center justify-center">
+                <div className="text-center text-white">
+                  <BookOpen className="h-24 w-24 mx-auto mb-6 opacity-90" />
+                  <h3 className="text-2xl font-bold mb-2">Prêt à commencer ?</h3>
+                  <p className="opacity-80 mb-6">
+                    Rejoignez des centaines d'équipes qui utilisent déjà
+                    KnowledgeHub
+                  </p>
+                  <Link href="/auth/signup">
+                    <button className="px-6 py-3 bg-white text-blue-600 rounded-lg hover:bg-gray-100 transition-colors font-medium">
+                      Créer un compte gratuit
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="container mx-auto px-4 py-8 mt-12 border-t border-gray-200 dark:border-gray-700">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <p className="mb-2">© 2024 KnowHub. Plateforme de Gestion des Connaissances.</p>
-          <p className="text-sm">
-            Stack technique : Next.js 14 • NestJS • PostgreSQL • IA OpenAI/Llama 3 • Redis
-          </p>
+      <footer className="py-8 border-t border-gray-200 dark:border-gray-800">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span className="font-semibold text-gray-900 dark:text-white">
+                KnowledgeHub
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              © 2024 KnowledgeHub. Tous droits réservés.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
