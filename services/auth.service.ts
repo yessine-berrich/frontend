@@ -79,3 +79,24 @@ export async function fetchCurrentUser() {
   if (!res.ok) throw new Error("Erreur lors de la récupération du profil");
   return res.json();
 }
+
+export async function updateProfile(userId: number, data: FormData) {
+  const token = localStorage.getItem("auth_token");
+  
+  const res = await fetch(`${API_URL}/users/${userId}`, {
+    method: "PATCH",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      // Note : Ne pas mettre "Content-Type": "application/json" ici,
+      // le navigateur le définira automatiquement avec le "boundary" pour FormData
+    },
+    body: data, // On envoie directement l'objet FormData
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.message || "Échec de la mise à jour");
+  }
+
+  return res.json();
+}

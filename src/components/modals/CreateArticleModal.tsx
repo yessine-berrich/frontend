@@ -27,12 +27,41 @@ import {
 interface CreateArticleModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 interface Toast {
   id: string;
   type: 'success' | 'error' | 'info';
   message: string;
+}
+
+interface Category {
+  id: number;
+  value: number;
+  label: string;
+  icon: string;
+}
+
+interface Tag {
+  id: number;
+  name: string;
+}
+
+interface MediaDto {
+  url: string;
+  filename: string;
+  mimetype: string;
+  size: number;
+}
+
+interface CreateArticleDto {
+  title: string;
+  content: string;
+  categoryId: number;
+  tagIds: number[];
+  media?: MediaDto[];
+  status?: 'DRAFT' | 'PENDING' | 'PUBLISHED';
 }
 
 // Composant pour afficher les notifications
@@ -149,7 +178,7 @@ const MarkdownPreview = ({ content }: { content: string }) => {
       
       // Paragraph
       if (line.trim()) {
-        return <p key={index} className="my-3 leading-relaxed text-gray-700 dark:text-gray-300">{line}</p>;
+        return <p key={index} className="my-3 leading-relaxed text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: line }} />;
       }
       
       return <br key={index} />;
@@ -163,30 +192,71 @@ const MarkdownPreview = ({ content }: { content: string }) => {
   );
 };
 
-export default function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps) {
+export default function CreateArticleModal({ isOpen, onClose, onSuccess }: CreateArticleModalProps) {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState<number | ''>('');
   const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<number[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedMedia, setUploadedMedia] = useState<MediaDto[]>([]);
+
+  // États pour les données dynamiques
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const availableTags = ['#React', '#TypeScript', '#Guide', '#Tutoriel', '#Best Practices', '#Nouveau'];
+  // Charger les catégories et tags au montage du composant
+  useEffect(() => {
+    if (isOpen) {
+      loadInitialData();
+    }
+  }, [isOpen]);
 
-  const categories = [
-    { value: 'developpement', label: 'Développement', icon: '💻' },
-    { value: 'design', label: 'Design', icon: '🎨' },
-    { value: 'marketing', label: 'Marketing', icon: '📈' },
-    { value: 'rh', label: 'RH', icon: '👥' },
-    { value: 'finance', label: 'Finance', icon: '💰' },
-    { value: 'juridique', label: 'Juridique', icon: '⚖️' },
-  ];
+  const loadInitialData = async () => {
+    setIsLoadingData(true);
+    try {
+      // Charger les catégories
+      const categoriesResponse = await fetch('http://localhost:3000/api/categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        setCategories(categoriesData.map((cat: any) => ({
+          id: cat.id,
+          value: cat.id,
+          label: cat.name,
+          icon: cat.icon || '📁',
+        })));
+      }
+
+      // Charger les tags
+      const tagsResponse = await fetch('http://localhost:3000/api/tags', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      if (tagsResponse.ok) {
+        const tagsData = await tagsResponse.json();
+        setAvailableTags(tagsData);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des données:', error);
+      showToast('error', '❌ Erreur lors du chargement des données');
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   const showToast = (type: Toast['type'], message: string) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -196,9 +266,9 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
     }, 3000);
   };
 
-  const toggleTag = (tag: string) => {
-    setTags(prev => 
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+  const toggleTag = (tagId: number) => {
+    setSelectedTags(prev => 
+      prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId]
     );
   };
 
@@ -207,7 +277,7 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
       showToast('error', 'Le titre est obligatoire');
       return false;
     }
-    if (!category) {
+    if (!category || category === '') {
       showToast('error', 'Veuillez sélectionner une catégorie');
       return false;
     }
@@ -215,7 +285,7 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
       showToast('error', 'Le contenu ne peut pas être vide');
       return false;
     }
-    if (tags.length === 0) {
+    if (selectedTags.length === 0) {
       showToast('error', 'Ajoutez au moins un tag');
       return false;
     }
@@ -281,7 +351,6 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
         const cols = prompt('Nombre de colonnes :', '3');
         if (rows && cols) {
           let table = '\n';
-          // Header
           table += '|';
           for (let i = 0; i < parseInt(cols); i++) {
             table += ` Header ${i+1} |`;
@@ -291,7 +360,6 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
             table += ' --- |';
           }
           table += '\n';
-          // Rows
           for (let i = 0; i < parseInt(rows); i++) {
             table += '|';
             for (let j = 0; j < parseInt(cols); j++) {
@@ -324,14 +392,12 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Vérifier le type de fichier
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       showToast('error', 'Type de fichier non supporté. Utilisez JPG, PNG, GIF ou WebP.');
       return;
     }
 
-    // Vérifier la taille (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       showToast('error', 'L\'image est trop lourde. Maximum 5MB.');
       return;
@@ -341,27 +407,43 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
     setUploadProgress(0);
 
     try {
-      // Simuler l'upload avec progression
-      const simulateUpload = () => {
-        return new Promise<string>((resolve) => {
-          let progress = 0;
-          const interval = setInterval(() => {
-            progress += 10;
-            setUploadProgress(progress);
-            if (progress >= 100) {
-              clearInterval(interval);
-              // Dans une vraie application, vous enverriez le fichier à votre serveur
-              // et récupéreriez l'URL de l'image
-              const mockUrl = URL.createObjectURL(file);
-              resolve(mockUrl);
-            }
-          }, 100);
-        });
-      };
+      const formData = new FormData();
+      formData.append('file', file);
 
-      const imageUrl = await simulateUpload();
-      
-      // Insérer l'image dans le contenu
+      // Simuler la progression
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90));
+      }, 100);
+
+      // Upload réel vers votre API
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!response.ok) {
+        throw new Error('Échec de l\'upload');
+      }
+
+      const data = await response.json();
+      const imageUrl = data.url;
+
+      // Ajouter aux médias uploadés
+      const mediaDto: MediaDto = {
+        url: imageUrl,
+        filename: file.name,
+        mimetype: file.type,
+        size: file.size,
+      };
+      setUploadedMedia(prev => [...prev, mediaDto]);
+
+      // Insérer dans le contenu
       const textarea = textareaRef.current;
       if (textarea) {
         const start = textarea.selectionStart;
@@ -372,6 +454,7 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
 
       showToast('success', '✅ Image téléchargée avec succès !');
     } catch (error) {
+      console.error('Erreur upload:', error);
       showToast('error', '❌ Erreur lors du téléchargement de l\'image');
     } finally {
       setIsUploadingImage(false);
@@ -387,17 +470,41 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
 
     setIsSubmitting(true);
     try {
-      // TODO: Remplacer par votre appel API
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const articleDto: CreateArticleDto = {
+        title,
+        content,
+        categoryId: category,
+        tagIds: selectedTags,
+        media: uploadedMedia,
+        status: 'DRAFT',
+      };
+
+      const response = await fetch('/api/articles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(articleDto),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la sauvegarde');
+      }
+
+      const savedArticle = await response.json();
+      console.log('Brouillon sauvegardé:', savedArticle);
       
-      console.log('Sauvegarde brouillon...', { title, category, content, tags });
       showToast('success', '✅ Brouillon sauvegardé avec succès !');
       
       setTimeout(() => {
         resetForm();
+        onSuccess?.();
       }, 1000);
-    } catch (error) {
-      showToast('error', '❌ Erreur lors de la sauvegarde');
+    } catch (error: any) {
+      console.error('Erreur:', error);
+      showToast('error', `❌ ${error.message || 'Erreur lors de la sauvegarde'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -408,18 +515,42 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
 
     setIsSubmitting(true);
     try {
-      // TODO: Remplacer par votre appel API
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const articleDto: CreateArticleDto = {
+        title,
+        content,
+        categoryId: category,
+        tagIds: selectedTags,
+        media: uploadedMedia,
+        status: 'pending',
+      };
+
+      const response = await fetch('http://localhost:3000/api/articles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify(articleDto),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la soumission');
+      }
+
+      const submittedArticle = await response.json();
+      console.log('Article soumis:', submittedArticle);
       
-      console.log('Soumission pour validation...', { title, category, content, tags });
       showToast('success', '✅ Article soumis pour validation !');
       
       setTimeout(() => {
         resetForm();
         onClose();
+        onSuccess?.();
       }, 1000);
-    } catch (error) {
-      showToast('error', '❌ Erreur lors de la soumission');
+    } catch (error: any) {
+      console.error('Erreur:', error);
+      showToast('error', `❌ ${error.message || 'Erreur lors de la soumission'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -429,7 +560,8 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
     setTitle('');
     setCategory('');
     setContent('');
-    setTags([]);
+    setSelectedTags([]);
+    setUploadedMedia([]);
     setShowPreview(false);
   };
 
@@ -497,253 +629,244 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
 
           {/* Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-180px)] px-8 py-6 custom-scrollbar">
-            {/* User Info */}
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
-                JD
+            {isLoadingData ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={32} className="animate-spin text-blue-600" />
+                <span className="ml-3 text-gray-600 dark:text-gray-400">Chargement...</span>
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">Jean Dupont</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">IT</p>
-              </div>
-            </div>
-
-            {/* Title */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Titre <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Donnez un titre accrocheur à votre article..."
-                disabled={isSubmitting}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-800"
-              />
-            </div>
-
-            {/* Category */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Catégorie <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                disabled={isSubmitting}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white appearance-none bg-white dark:bg-gray-800 cursor-pointer disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
-              >
-                <option value="">Sélectionner une catégorie</option>
-                {categories.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.icon} {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Content Editor */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Contenu <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-4">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {content.length} caractères • {content.split(/\s+/).filter(word => word.length > 0).length} mots
-                  </div>
-                  <button
-                    onClick={() => setShowPreview(!showPreview)}
+            ) : (
+              <>
+                {/* Title */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Titre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Donnez un titre accrocheur à votre article..."
                     disabled={isSubmitting}
-                    className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors disabled:opacity-50 px-3 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-800"
+                  />
+                </div>
+
+                {/* Category */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Catégorie <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value ? Number(e.target.value) : '')}
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white appearance-none bg-white dark:bg-gray-800 cursor-pointer disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
                   >
-                    <Eye size={16} />
-                    {showPreview ? 'Éditer' : 'Aperçu'}
-                  </button>
+                    <option value="">Sélectionner une catégorie</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              {showPreview ? (
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 min-h-[300px] border border-gray-300 dark:border-gray-700">
-                  {content ? (
-                    <MarkdownPreview content={content} />
-                  ) : (
-                    <div className="text-gray-400 dark:text-gray-500 italic text-center py-10">
-                      Rien à prévisualiser. Commencez à écrire !
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Toolbar enrichie */}
-                  <div className="flex flex-wrap items-center gap-1 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t-lg">
-                    {/* Formatage de texte */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
-                      <button 
-                        onClick={() => insertMarkdown('heading1')}
+                {/* Content Editor */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Contenu <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {content.length} caractères • {content.split(/\s+/).filter(word => word.length > 0).length} mots
+                      </div>
+                      <button
+                        onClick={() => setShowPreview(!showPreview)}
                         disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Titre 1 (Ctrl+1)"
+                        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors disabled:opacity-50 px-3 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
                       >
-                        <Heading1 size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('heading2')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Titre 2 (Ctrl+2)"
-                      >
-                        <Heading2 size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('heading3')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Titre 3 (Ctrl+3)"
-                      >
-                        <Heading3 size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
-                      <button 
-                        onClick={() => insertMarkdown('bold')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Gras (Ctrl+B)"
-                      >
-                        <Bold size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('italic')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Italique (Ctrl+I)"
-                      >
-                        <Italic size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                    </div>
-
-                    {/* Listes */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
-                      <button 
-                        onClick={() => insertMarkdown('list')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Liste à puces"
-                      >
-                        <List size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('orderedlist')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Liste numérotée"
-                      >
-                        <ListOrdered size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('checkbox')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Case à cocher"
-                      >
-                        <CheckSquare size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                    </div>
-
-                    {/* Code */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
-                      <button 
-                        onClick={() => insertMarkdown('code')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Code inline"
-                      >
-                        <Code size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('codeblock')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Bloc de code"
-                      >
-                        <FileCode size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                    </div>
-
-                    {/* Media et liens */}
-                    <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleImageUpload}
-                        accept="image/*"
-                        className="hidden"
-                        disabled={isSubmitting}
-                      />
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isSubmitting || isUploadingImage}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 flex items-center gap-1" 
-                        title="Insérer une image"
-                      >
-                        {isUploadingImage ? (
-                          <>
-                            <Loader2 size={18} className="animate-spin" />
-                            <span className="text-xs">{uploadProgress}%</span>
-                          </>
-                        ) : (
-                          <ImageIcon size={18} className="text-gray-700 dark:text-gray-300" />
-                        )}
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('link')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Insérer un lien (Ctrl+K)"
-                      >
-                        <LinkIcon size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                    </div>
-
-                    {/* Éléments spéciaux */}
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => insertMarkdown('quote')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Citation"
-                      >
-                        <Quote size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('table')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Tableau"
-                      >
-                        <Table size={18} className="text-gray-700 dark:text-gray-300" />
-                      </button>
-                      <button 
-                        onClick={() => insertMarkdown('hr')}
-                        disabled={isSubmitting}
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
-                        title="Ligne horizontale"
-                      >
-                        <Minus size={18} className="text-gray-700 dark:text-gray-300" />
+                        <Eye size={16} />
+                        {showPreview ? 'Éditer' : 'Aperçu'}
                       </button>
                     </div>
                   </div>
 
-                  {/* Éditeur */}
-                  <div className="relative">
-                    <textarea
-                      ref={textareaRef}
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder={`# Bienvenue dans l'éditeur Markdown !
+                  {showPreview ? (
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 min-h-[300px] border border-gray-300 dark:border-gray-700">
+                      {content ? (
+                        <MarkdownPreview content={content} />
+                      ) : (
+                        <div className="text-gray-400 dark:text-gray-500 italic text-center py-10">
+                          Rien à prévisualiser. Commencez à écrire !
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Toolbar */}
+                      <div className="flex flex-wrap items-center gap-1 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t-lg">
+                        <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
+                          <button 
+                            onClick={() => insertMarkdown('heading1')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Titre 1 (Ctrl+1)"
+                          >
+                            <Heading1 size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('heading2')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Titre 2 (Ctrl+2)"
+                          >
+                            <Heading2 size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('heading3')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Titre 3 (Ctrl+3)"
+                          >
+                            <Heading3 size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
+                          <button 
+                            onClick={() => insertMarkdown('bold')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Gras (Ctrl+B)"
+                          >
+                            <Bold size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('italic')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Italique (Ctrl+I)"
+                          >
+                            <Italic size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
+                          <button 
+                            onClick={() => insertMarkdown('list')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Liste à puces"
+                          >
+                            <List size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('orderedlist')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Liste numérotée"
+                          >
+                            <ListOrdered size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('checkbox')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Case à cocher"
+                          >
+                            <CheckSquare size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
+                          <button 
+                            onClick={() => insertMarkdown('code')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Code inline"
+                          >
+                            <Code size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('codeblock')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Bloc de code"
+                          >
+                            <FileCode size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageUpload}
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isSubmitting}
+                          />
+                          <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isSubmitting || isUploadingImage}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 flex items-center gap-1" 
+                            title="Insérer une image"
+                          >
+                            {isUploadingImage ? (
+                              <>
+                                <Loader2 size={18} className="animate-spin" />
+                                <span className="text-xs">{uploadProgress}%</span>
+                              </>
+                            ) : (
+                              <ImageIcon size={18} className="text-gray-700 dark:text-gray-300" />
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('link')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Insérer un lien (Ctrl+K)"
+                          >
+                            <LinkIcon size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => insertMarkdown('quote')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Citation"
+                          >
+                            <Quote size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('table')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Tableau"
+                          >
+                            <Table size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                          <button 
+                            onClick={() => insertMarkdown('hr')}
+                            disabled={isSubmitting}
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
+                            title="Ligne horizontale"
+                          >
+                            <Minus size={18} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Éditeur */}
+                      <div className="relative">
+                        <textarea
+                          ref={textareaRef}
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          placeholder={`# Bienvenue dans l'éditeur Markdown !
 
 ## Fonctionnalités disponibles :
 - **Gras** avec ** ou Ctrl+B
@@ -755,64 +878,69 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
 - > Citations
 - \`\`\`blocs de code\`\`\`
 - Et bien plus !`}
-                      disabled={isSubmitting}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 border-t-0 rounded-b-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[300px] resize-y custom-scrollbar disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-800 font-mono text-sm"
-                      spellCheck="true"
-                    />
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <Type size={12} />
-                      <span>Markdown supporté</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                          disabled={isSubmitting}
+                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 border-t-0 rounded-b-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[300px] resize-y custom-scrollbar disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-800 font-mono text-sm"
+                          spellCheck="true"
+                        />
+                        <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <Type size={12} />
+                          <span>Markdown supporté</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-            {/* Tags */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                Tags <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {availableTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    disabled={isSubmitting}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
-                      tags.includes(tag)
-                        ? 'bg-blue-600 text-white shadow-md scale-105'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-              {tags.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                    Tags sélectionnés :
-                  </p>
+                {/* Tags */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    Tags <span className="text-red-500">*</span>
+                  </label>
                   <div className="flex flex-wrap gap-2">
-                    {tags.map(tag => (
-                      <span 
-                        key={tag} 
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full text-sm"
+                    {availableTags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        onClick={() => toggleTag(tag.id)}
+                        disabled={isSubmitting}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
+                          selectedTags.includes(tag.id)
+                            ? 'bg-blue-600 text-white shadow-md scale-105'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
                       >
-                        {tag}
-                        <button 
-                          onClick={() => toggleTag(tag)}
-                          className="hover:text-blue-900 dark:hover:text-blue-100"
-                        >
-                          ×
-                        </button>
-                      </span>
+                        {tag.name}
+                      </button>
                     ))}
                   </div>
+                  {selectedTags.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        Tags sélectionnés :
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTags.map(tagId => {
+                          const tag = availableTags.find(t => t.id === tagId);
+                          return tag ? (
+                            <span 
+                              key={tagId} 
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full text-sm"
+                            >
+                              {tag.name}
+                              <button 
+                                onClick={() => toggleTag(tagId)}
+                                className="hover:text-blue-900 dark:hover:text-blue-100"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           {/* Footer */}
@@ -826,7 +954,7 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveDraft}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingData}
                 className="px-6 py-2.5 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isSubmitting && <Loader2 size={18} className="animate-spin" />}
@@ -834,7 +962,7 @@ export default function CreateArticleModal({ isOpen, onClose }: CreateArticleMod
               </button>
               <button
                 onClick={handleSubmitForValidation}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingData}
                 className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isSubmitting && <Loader2 size={18} className="animate-spin" />}

@@ -1,14 +1,25 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { logout } from "../../../services/auth.service";
+import { fetchCurrentUser, logout } from "../../../services/auth.service";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+    const [user, setUser] = useState<any>(null);
+  
+    useEffect(() => {
+        fetchCurrentUser().then(setUser).catch(console.error);
+      }, []);
 
+  // URL de base pour les images via votre API NestJS
+  const getProfileImageUrl = (userData: any) => {
+    if (!userData?.id || !userData?.profileImage) return "/images/user/owner.jpg";
+    // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+    return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
+  };
 function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
   e.stopPropagation();
   setIsOpen((prev) => !prev);
@@ -27,8 +38,9 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
           <Image
             width={44}
             height={44}
-            src="/images/user/owner.jpg"
+            src={getProfileImageUrl(user)}
             alt="User"
+            unoptimized
           />
         </span>
 
