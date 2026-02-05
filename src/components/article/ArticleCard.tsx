@@ -265,7 +265,7 @@ export default function ArticleCard({
 
           {/* Comments */}
           <Link
-            href={`/article/${article.id}#comments`}
+            href={`/article/${article.id}`}
             className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
           >
             <MessageCircle size={20} />

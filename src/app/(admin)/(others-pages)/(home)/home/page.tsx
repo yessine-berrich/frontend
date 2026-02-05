@@ -1,7 +1,10 @@
 'use client';
 
+import TrendingArticles from "@/components/article/Trendingarticles";
 import ArticleCard from "@/components/article/ArticleCard";
+import TopContributors from "@/components/users/Topcontributors";
 
+import { FileText, Eye } from 'lucide-react';
 
 // Exemple de données
 const sampleArticles = [
@@ -109,39 +112,64 @@ export default function ArticlesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="mx-auto max-w-7xl px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Articles récents
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Découvrez les derniers articles publiés par vos collègues
-          </p>
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content - Left Side (2 columns) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Articles Grid */}
+            <div className="space-y-6">
+              {sampleArticles.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  onLike={handleLike}
+                  onBookmark={handleBookmark}
+                  onShare={handleShare}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  showActions={true}
+                />
+              ))}
+            </div>
 
-        {/* Articles Grid */}
-        <div className="space-y-6">
-          {sampleArticles.map((article) => (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              onLike={handleLike}
-              onBookmark={handleBookmark}
-              onShare={handleShare}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              showActions={true}
-            />
-          ))}
-        </div>
+            {/* Load More */}
+            <div className="text-center">
+              <button className="px-6 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">
+                Charger plus d'articles
+              </button>
+            </div>
+          </div>
 
-        {/* Load More */}
-        <div className="mt-8 text-center">
-          <button className="px-6 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">
-            Charger plus d'articles
-          </button>
+          {/* Sidebar - Right Side (1 column) */}
+          <div className="space-y-6">
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 gap-4">
+              {/* Articles Count */}
+              <div className="rounded-sm border border-stroke bg-white px-7 py-6 shadow-default dark:border-strokedark dark:bg-boxdark">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-title-md font-bold text-black dark:text-white">
+                      156
+                    </h4>
+                    <span className="text-sm font-medium text-bodydark">Articles</span>
+                  </div>
+                  <div className="flex h-11.5 w-11.5 items-center justify-center rounded-full bg-meta-2 dark:bg-meta-4">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                </div>
+              </div>
+
+             
+            </div>
+
+            {/* Trending Articles */}
+            <TrendingArticles />
+
+            {/* Top Contributors */}
+            <TopContributors />
+          </div>
         </div>
       </div>
     </div>

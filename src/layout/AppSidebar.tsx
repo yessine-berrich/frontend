@@ -54,6 +54,11 @@ const navItems: NavItem[] = [
   name: "Categories",
   path: "/categories",
 },
+{
+  icon: <Folder className="w-5 h-5" />,
+  name: "users",
+  path: "/users",
+},
   {
     icon: <CalenderIcon />,
     name: "Calendar",
