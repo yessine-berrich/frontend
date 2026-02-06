@@ -8,9 +8,7 @@ interface Category {
   id: string;
   name: string;
   description: string;
-  color: string;
   articleCount: number;
-  icon: string;
 }
 
 const initialCategories: Category[] = [
@@ -18,65 +16,49 @@ const initialCategories: Category[] = [
     id: '1',
     name: 'Frontend',
     description: 'Technologies et frameworks côté client : React, Vue, Angular, CSS, HTML',
-    color: 'bg-blue-500',
     articleCount: 45,
-    icon: '🎨',
   },
   {
     id: '2',
     name: 'Backend',
     description: 'Développement serveur : Node.js, Python, Java, bases de données',
-    color: 'bg-green-500',
     articleCount: 38,
-    icon: '⚙️',
   },
   {
     id: '3',
     name: 'DevOps',
     description: 'Infrastructure, CI/CD, conteneurisation, orchestration',
-    color: 'bg-orange-500',
     articleCount: 24,
-    icon: '🚀',
   },
   {
     id: '4',
     name: 'Base de données',
     description: 'SQL, NoSQL, optimisation, modélisation de données',
-    color: 'bg-purple-500',
     articleCount: 18,
-    icon: '🗄️',
   },
   {
     id: '5',
     name: 'Sécurité',
     description: 'Cybersécurité, authentification, bonnes pratiques',
-    color: 'bg-red-500',
     articleCount: 15,
-    icon: '🔒',
   },
   {
     id: '6',
     name: 'Architecture',
     description: 'Patterns, microservices, design system, scalabilité',
-    color: 'bg-indigo-500',
     articleCount: 12,
-    icon: '🏗️',
   },
   {
     id: '7',
     name: 'IA & Machine Learning',
     description: 'Intelligence artificielle, apprentissage automatique, LLM',
-    color: 'bg-pink-500',
     articleCount: 21,
-    icon: '🤖',
   },
   {
     id: '8',
     name: 'Mobile',
     description: 'Développement iOS, Android, React Native, Flutter',
-    color: 'bg-cyan-500',
     articleCount: 9,
-    icon: '📱',
   },
 ];
 
@@ -105,8 +87,6 @@ export default function CategoriesPage() {
   const handleCreateCategory = (categoryData: {
     name: string;
     description: string;
-    icon: string;
-    color: string;
   }) => {
     if (editingCategory) {
       // Update existing category

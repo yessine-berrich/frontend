@@ -1,16 +1,13 @@
-// /home/pfe2026/Desktop/PfeProject/frontend/src/components/categories/CategoriesManager.tsx
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2, Eye, Search, Folder } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Search, Folder, FileText, BarChart2, TrendingUp } from 'lucide-react';
 
 interface Category {
   id: string;
   name: string;
   description: string;
-  color: string;
   articleCount: number;
-  icon: string;
 }
 
 interface CategoriesManagerProps {
@@ -51,8 +48,8 @@ export default function CategoriesManager({
               <p className="text-sm text-gray-500 dark:text-gray-400">Total Catégories</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{categories.length}</p>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Folder className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              <Folder className="w-6 h-6 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         </div>
@@ -63,8 +60,8 @@ export default function CategoriesManager({
               <p className="text-sm text-gray-500 dark:text-gray-400">Articles total</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalArticles}</p>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <div className="text-2xl">📚</div>
+            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              <FileText className="w-6 h-6 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         </div>
@@ -77,8 +74,8 @@ export default function CategoriesManager({
                 {categories.length > 0 ? Math.round(totalArticles / categories.length) : 0}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <div className="text-2xl">📊</div>
+            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              <BarChart2 className="w-6 h-6 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         </div>
@@ -86,13 +83,13 @@ export default function CategoriesManager({
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Catégories populaires</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Catégories actives</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {categories.filter(c => c.articleCount > 10).length}
+                {categories.filter(c => c.articleCount > 0).length}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-              <div className="text-2xl">🔥</div>
+            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         </div>
@@ -113,7 +110,7 @@ export default function CategoriesManager({
 
         <button
           onClick={onCreateClick}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-md hover:shadow-lg whitespace-nowrap"
+          className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg whitespace-nowrap"
         >
           <Plus className="h-4 w-4" />
           Nouvelle catégorie
@@ -128,15 +125,12 @@ export default function CategoriesManager({
               key={category.id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden group hover:shadow-md transition-all duration-300"
             >
-              {/* Header avec couleur */}
-              <div className={`h-3 ${category.color}`} />
-
               {/* Content */}
               <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl ${category.color} flex items-center justify-center text-2xl shadow-lg`}>
-                      {category.icon}
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shadow-sm">
+                      <Folder className="w-6 h-6 text-gray-600 dark:text-gray-400" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-white text-lg">

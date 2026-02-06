@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Folder } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface CreateCategoryModalProps {
   isOpen: boolean;
@@ -9,30 +9,13 @@ interface CreateCategoryModalProps {
   onCreateCategory: (category: {
     name: string;
     description: string;
-    icon: string;
-    color: string;
   }) => void;
   editCategory?: {
     id: string;
     name: string;
     description: string;
-    icon: string;
-    color: string;
   } | null;
 }
-
-const colorOptions = [
-  { value: 'bg-blue-500', label: 'Bleu', class: 'bg-blue-500' },
-  { value: 'bg-green-500', label: 'Vert', class: 'bg-green-500' },
-  { value: 'bg-red-500', label: 'Rouge', class: 'bg-red-500' },
-  { value: 'bg-yellow-500', label: 'Jaune', class: 'bg-yellow-500' },
-  { value: 'bg-purple-500', label: 'Violet', class: 'bg-purple-500' },
-  { value: 'bg-pink-500', label: 'Rose', class: 'bg-pink-500' },
-  { value: 'bg-indigo-500', label: 'Indigo', class: 'bg-indigo-500' },
-  { value: 'bg-orange-500', label: 'Orange', class: 'bg-orange-500' },
-  { value: 'bg-cyan-500', label: 'Cyan', class: 'bg-cyan-500' },
-  { value: 'bg-teal-500', label: 'Teal', class: 'bg-teal-500' },
-];
 
 export default function CreateCategoryModal({
   isOpen,
@@ -42,8 +25,6 @@ export default function CreateCategoryModal({
 }: CreateCategoryModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [icon, setIcon] = useState('📁');
-  const [color, setColor] = useState('bg-blue-500');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Populate form when editing
@@ -51,14 +32,12 @@ export default function CreateCategoryModal({
     if (editCategory) {
       setName(editCategory.name);
       setDescription(editCategory.description);
-      setIcon(editCategory.icon);
-      setColor(editCategory.color);
     } else {
       // Reset form when creating new
-      setName('');
-      setDescription('');
-      setIcon('📁');
-      setColor('bg-blue-500');
+      if (!isOpen) {
+        setName('');
+        setDescription('');
+      }
     }
   }, [editCategory, isOpen]);
 
@@ -78,13 +57,11 @@ export default function CreateCategoryModal({
     setIsSubmitting(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      onCreateCategory({ name: name.trim(), description: description.trim(), icon, color });
-      
-      // Reset form
-      setName('');
-      setDescription('');
-      setIcon('📁');
-      setColor('bg-blue-500');
+      onCreateCategory({ 
+        name: name.trim(), 
+        description: description.trim()
+      });
+
       onClose();
     } catch (error) {
       console.error('Erreur:', error);
@@ -107,18 +84,13 @@ export default function CreateCategoryModal({
       <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 animate-slideUp max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editCategory ? 'Modifier la catégorie' : 'Créer une catégorie'}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {editCategory ? 'Modifiez les informations de la catégorie' : 'Ajoutez une nouvelle catégorie pour organiser vos articles'}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {editCategory ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {editCategory ? 'Modifiez les informations de la catégorie' : 'Ajoutez une nouvelle catégorie pour organiser vos articles'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -163,14 +135,11 @@ export default function CreateCategoryModal({
               />
             </div>
 
-         
             {/* Info */}
-            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Les catégories vous aident à organiser vos articles par thème. Choisissez un nom clair et une description précise.
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Les catégories vous aident à organiser vos articles par thème. 
+                Choisissez un nom clair et une description précise pour faciliter la navigation.
               </p>
             </div>
           </div>
@@ -181,17 +150,17 @@ export default function CreateCategoryModal({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-6 py-2.5 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={!name.trim() || !description.trim() || isSubmitting}
-              className={`px-6 py-2.5 font-medium rounded-lg transition-all ${
+              className={`px-5 py-2.5 font-medium rounded-lg transition-all ${
                 !name.trim() || !description.trim() || isSubmitting
                   ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
               {isSubmitting ? 'En cours...' : editCategory ? 'Enregistrer' : 'Créer'}
