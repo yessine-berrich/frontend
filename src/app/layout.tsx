@@ -3,6 +3,7 @@ import './globals.css';
 import "flatpickr/dist/flatpickr.css";
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import AIAssistant from '@/components/ia-assistant/AIAssistant';
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -19,6 +20,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SidebarProvider>{children}</SidebarProvider>
         </ThemeProvider>
+        <AIAssistant />
       </body>
     </html>
   );
