@@ -163,67 +163,7 @@ export default function CreateCategoryModal({
               />
             </div>
 
-            {/* Icon & Color */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Icon */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Icône (emoji)
-                </label>
-                <input
-                  type="text"
-                  value={icon}
-                  onChange={(e) => setIcon(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center text-2xl"
-                  maxLength={2}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Preview */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Aperçu
-                </label>
-                <div className="flex items-center justify-center h-[52px] border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center text-2xl shadow-lg`}>
-                    {icon}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Color Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Couleur
-              </label>
-              <div className="grid grid-cols-5 gap-3">
-                {colorOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setColor(option.value)}
-                    disabled={isSubmitting}
-                    className={`relative w-full aspect-square rounded-lg ${option.class} transition-all hover:scale-110 ${
-                      color === option.value
-                        ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white scale-110'
-                        : ''
-                    }`}
-                    title={option.label}
-                  >
-                    {color === option.value && (
-                      <div className="absolute inset-0 flex items-center justify-center text-white">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+         
             {/* Info */}
             <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">

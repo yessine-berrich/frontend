@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal, Download, Printer, FileText, User } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import ArticleDetailModal from '@/components/modals/ArticleDetailModal';
 
 interface ArticleCardProps {
@@ -9,8 +10,9 @@ interface ArticleCardProps {
     id: string;
     title: string;
     description: string;
-    content: string; // Full article content
+    content: string;
     author: {
+      id?: string; // Ajout de l'ID de l'auteur
       name: string;
       initials: string;
       department: string;
@@ -55,9 +57,10 @@ export default function ArticleCard({
   const [likesCount, setLikesCount] = useState(article.stats.likes);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -95,6 +98,14 @@ export default function ArticleCard({
     setIsModalOpen(true);
   };
 
+  // Fonction pour naviguer vers le profil de l'auteur
+  const navigateToAuthorProfile = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Empêche l'ouverture de la modal
+    // Si l'auteur a un ID, on l'utilise, sinon on utilise son nom pour l'URL
+    const authorId = article.author.id || encodeURIComponent(article.author.name);
+    router.push(`/profile/${authorId}`);
+  };
+
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -114,31 +125,281 @@ export default function ArticleCard({
     }
   };
 
+  // Fonction pour exporter en PDF
+  const exportToPDF = () => {
+    setIsExporting(true);
+    setIsMenuOpen(false);
+    
+    try {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>${article.title}</title>
+            <style>
+              body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 40px;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 40px;
+                border-bottom: 2px solid #3b82f6;
+                padding-bottom: 20px;
+              }
+              .title {
+                font-size: 28px;
+                color: #1e40af;
+                margin-bottom: 10px;
+                font-weight: bold;
+              }
+              .meta {
+                color: #6b7280;
+                font-size: 14px;
+                margin-bottom: 20px;
+              }
+              .author-info {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              }
+              .author-avatar {
+                width: 40px;
+                height: 40px;
+                background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 16px;
+              }
+              .author-name {
+                font-weight: 600;
+                color: #374151;
+              }
+              .description {
+                font-size: 16px;
+                color: #4b5563;
+                margin-bottom: 30px;
+                text-align: center;
+                font-style: italic;
+              }
+              .category-badge {
+                display: inline-block;
+                background-color: #dbeafe;
+                color: #1e40af;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 500;
+                margin-bottom: 10px;
+              }
+              .content {
+                font-size: 15px;
+                margin-top: 30px;
+                white-space: pre-wrap;
+                line-height: 1.8;
+              }
+              .stats {
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #e5e7eb;
+                font-size: 12px;
+                color: #6b7280;
+              }
+              .stat-item {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+              }
+              .tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 20px;
+                justify-content: center;
+              }
+              .tag {
+                color: #6b7280;
+                font-size: 12px;
+              }
+              .footer {
+                margin-top: 40px;
+                text-align: center;
+                font-size: 11px;
+                color: #9ca3af;
+                border-top: 1px solid #e5e7eb;
+                padding-top: 20px;
+              }
+              .generated-date {
+                margin-top: 10px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="category-badge">${article.category.name}</div>
+              <h1 class="title">${article.title}</h1>
+              <p class="description">${article.description}</p>
+              
+              <div class="author-info">
+                <div class="author-avatar">${article.author.initials}</div>
+                <div>
+                  <div class="author-name">${article.author.name}</div>
+                  <div class="meta">${article.author.department} • ${getTimeAgo(article.publishedAt)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="content">
+              ${article.content.replace(/\n/g, '<br>')}
+            </div>
+
+            <div class="tags">
+              ${article.tags.map(tag => `<span class="tag">${tag}</span>`).join(' • ')}
+            </div>
+
+            <div class="stats">
+              <div class="stat-item">👁️ ${article.stats.views} vues</div>
+              <div class="stat-item">❤️ ${article.stats.likes} likes</div>
+              <div class="stat-item">💬 ${article.stats.comments} commentaires</div>
+            </div>
+
+            <div class="footer">
+              <div>Exporté depuis KnowledgeHub</div>
+              <div class="generated-date">Généré le ${new Date().toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        printWindow.onload = function() {
+          printWindow.print();
+          setTimeout(() => {
+            printWindow.close();
+            setIsExporting(false);
+          }, 1000);
+        };
+      } else {
+        downloadAsHTML(htmlContent);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      setIsExporting(false);
+      downloadAsText();
+    }
+  };
+
+  const downloadAsHTML = (htmlContent: string) => {
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${article.title.replace(/[^a-z0-9]/gi, '_')}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExporting(false);
+  };
+
+  const downloadAsText = () => {
+    const content = `
+Titre: ${article.title}
+Auteur: ${article.author.name}
+Département: ${article.author.department}
+Date: ${new Date(article.publishedAt).toLocaleDateString('fr-FR')}
+Catégorie: ${article.category.name}
+Tags: ${article.tags.join(', ')}
+
+Description:
+${article.description}
+
+Contenu:
+${article.content}
+
+Statistiques:
+- Vues: ${article.stats.views}
+- Likes: ${article.stats.likes}
+- Commentaires: ${article.stats.comments}
+
+Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
+    `;
+    
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${article.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExporting(false);
+  };
+
   return (
     <>
       <article className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 hover:shadow-lg transition-all duration-200 group">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-1">
-            {/* Avatar */}
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
-              {article.author.avatar ? (
-                <img 
-                  src={article.author.avatar} 
-                  alt={article.author.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                article.author.initials
-              )}
-            </div>
+            {/* Avatar cliquable */}
+            <button
+              onClick={navigateToAuthorProfile}
+              className="relative group/avatar"
+              aria-label={`Voir le profil de ${article.author.name}`}
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0 overflow-hidden transition-transform group-hover/avatar:scale-105">
+                {article.author.avatar ? (
+                  <img 
+                    src={article.author.avatar} 
+                    alt={article.author.name}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  article.author.initials
+                )}
+              </div>
+              <div className="absolute inset-0 bg-blue-600/0 group-hover/avatar:bg-blue-600/20 rounded-full transition-colors"></div>
+            </button>
 
             {/* Author Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                  {article.author.name}
-                </h3>
+                {/* Nom de l'auteur cliquable */}
+                <button
+                  onClick={navigateToAuthorProfile}
+                  className="group/name flex items-center gap-1.5"
+                >
+                  <h3 className="font-semibold text-gray-900 dark:text-white truncate group-hover/name:text-blue-600 dark:group-hover/name:text-blue-400 transition-colors">
+                    {article.author.name}
+                  </h3>
+                  <User size={14} className="text-gray-400 group-hover/name:text-blue-500 transition-colors" />
+                </button>
                 <span className="text-gray-500 dark:text-gray-400 text-sm">
                   {article.author.department}
                 </span>
@@ -169,22 +430,75 @@ export default function ArticleCard({
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 aria-label="More options"
+                disabled={isExporting}
               >
-                <MoreHorizontal size={20} />
+                {isExporting ? (
+                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <MoreHorizontal size={20} />
+                )}
               </button>
 
               {/* Dropdown Menu */}
               {isMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-10 animate-slideDown">
                   <button
+                    onClick={exportToPDF}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    disabled={isExporting}
+                  >
+                    {isExporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Export en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText size={16} />
+                        <span>Exporter en PDF</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
                     onClick={() => {
-                      onEdit?.(article.id);
+                      const printContent = `
+                        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+                          <h1 style="color: #1e40af; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+                            ${article.title}
+                          </h1>
+                          <div style="color: #6b7280; margin: 15px 0;">
+                            <strong>Auteur:</strong> ${article.author.name}<br/>
+                            <strong>Date:</strong> ${new Date(article.publishedAt).toLocaleDateString('fr-FR')}<br/>
+                            <strong>Catégorie:</strong> ${article.category.name}
+                          </div>
+                          <div style="margin: 20px 0; color: #4b5563;">
+                            ${article.content.replace(/\n/g, '<br>')}
+                          </div>
+                          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af;">
+                            Imprimé depuis KnowledgeHub - ${new Date().toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                      `;
+                      
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(printContent);
+                        printWindow.document.close();
+                        printWindow.focus();
+                        setTimeout(() => {
+                          printWindow.print();
+                          setTimeout(() => printWindow.close(), 500);
+                        }, 500);
+                      }
                       setIsMenuOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
                   >
-                    Modifier
+                    <Printer size={16} />
+                    <span>Imprimer</span>
                   </button>
+
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.href + '/article/' + article.id);
@@ -280,6 +594,20 @@ export default function ArticleCard({
               <Eye size={20} />
               <span className="text-sm font-medium">{article.stats.views}</span>
             </div>
+
+            {/* Bouton Export rapide */}
+            <button
+              onClick={exportToPDF}
+              className="hidden sm:flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              title="Exporter en PDF"
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Download size={20} />
+              )}
+            </button>
           </div>
 
           {/* Actions */}
@@ -306,23 +634,6 @@ export default function ArticleCard({
             </button>
           </div>
         </div>
-
-        <style jsx>{`
-          @keyframes slideDown {
-            from {
-              opacity: 0;
-              transform: translateY(-10px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          .animate-slideDown {
-            animation: slideDown 0.2s ease-out;
-          }
-        `}</style>
       </article>
 
       {/* Article Detail Modal */}

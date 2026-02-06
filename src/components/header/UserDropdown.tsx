@@ -8,46 +8,102 @@ import { fetchCurrentUser, logout } from "../../../services/auth.service";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-    const [user, setUser] = useState<any>(null);
-  
-    useEffect(() => {
-        fetchCurrentUser().then(setUser).catch(console.error);
-      }, []);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((userData) => {
+        setUser(userData);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error fetching user:", error);
+        setLoading(false);
+      });
+  }, []);
 
   // URL de base pour les images via votre API NestJS
   const getProfileImageUrl = (userData: any) => {
-    if (!userData?.id || !userData?.profileImage) return "/images/user/owner.jpg";
-    // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
-    return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
+    if (!userData?.id) return "/images/user/owner.jpg";
+    
+    // Si l'utilisateur a une image de profil dans la base de données
+    if (userData?.profileImage) {
+      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+      return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
+    }
+    
+    // Image par défaut si pas d'image de profil
+    return "/images/user/owner.jpg";
   };
-function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
-  e.stopPropagation();
-  setIsOpen((prev) => !prev);
-}
+
+  function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
+    e.stopPropagation();
+    setIsOpen((prev) => !prev);
+  }
 
   function closeDropdown() {
     setIsOpen(false);
   }
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      closeDropdown();
+      // Redirection vers la page de connexion
+      window.location.href = "/signin";
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  // Affichage pendant le chargement
+  if (loading) {
+    return (
+      <div className="flex items-center">
+        <div className="w-11 h-11 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse mr-3"></div>
+        <div className="h-11 flex flex-col justify-center">
+          <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
+          <div className="w-16 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       <button
-        onClick={toggleDropdown} 
-        className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
+        onClick={toggleDropdown}
+        className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle hover:opacity-80 transition-opacity"
+        aria-label="Menu utilisateur"
+        aria-expanded={isOpen}
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
+        <span className="mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-white dark:border-gray-800 shadow-sm">
           <Image
             width={44}
             height={44}
             src={getProfileImageUrl(user)}
-            alt="User"
+            alt={user?.firstName || "User"}
             unoptimized
+            className="object-cover"
+            onError={(e) => {
+              // Fallback en cas d'erreur de chargement d'image
+              e.currentTarget.src = "/images/user/owner.jpg";
+            }}
           />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">Musharof</span>
+        <div className="hidden sm:flex flex-col items-start mr-1">
+          <span className="block font-medium text-theme-sm text-gray-900 dark:text-white">
+            {user?.firstName} {user?.lastName}
+          </span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {user?.role || "Utilisateur"}
+          </span>
+        </div>
 
         <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
+          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ml-1 ${
             isOpen ? "rotate-180" : ""
           }`}
           width="18"
@@ -69,24 +125,51 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+        className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-50"
       >
-        <div>
-          <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Musharof Chowdhury
-          </span>
-          <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            randomuser@pimjo.com
-          </span>
+        {/* Header avec infos utilisateur */}
+        <div className="px-2 py-3 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white dark:border-gray-700 shadow-sm">
+              <Image
+                width={48}
+                height={48}
+                src={getProfileImageUrl(user)}
+                alt={user?.firstName || "User"}
+                unoptimized
+                className="object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = "/images/user/owner.jpg";
+                }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="block font-medium text-gray-700 text-theme-sm dark:text-white truncate">
+                {user?.firstName} {user?.lastName}
+              </span>
+              <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400 truncate">
+                {user?.email}
+              </span>
+            </div>
+          </div>
+          
+          {/* Badge de rôle */}
+          {user?.role && (
+            <div className="mt-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                {user.role}
+              </span>
+            </div>
+          )}
         </div>
 
-        <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+        <ul className="flex flex-col gap-1 pt-4 pb-3">
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
               href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="flex items-center gap-3 px-3 py-2.5 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
                 className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
@@ -103,15 +186,40 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
                   fill=""
                 />
               </svg>
-              Edit profile
+              Mon profil
             </DropdownItem>
           </li>
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              href="/profile?tab=articles"
+              className="flex items-center gap-3 px-3 py-2.5 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <svg
+                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M19 4.5H5C4.72386 4.5 4.5 4.72386 4.5 5V19C4.5 19.2761 4.72386 19.5 5 19.5H19C19.2761 19.5 19.5 19.2761 19.5 19V5C19.5 4.72386 19.2761 4.5 19 4.5ZM5 3C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3H5ZM7.5 8.25C7.5 7.83579 7.83579 7.5 8.25 7.5H15.75C16.1642 7.5 16.5 7.83579 16.5 8.25C16.5 8.66421 16.1642 9 15.75 9H8.25C7.83579 9 7.5 8.66421 7.5 8.25ZM8.25 10.5C7.83579 10.5 7.5 10.8358 7.5 11.25C7.5 11.6642 7.83579 12 8.25 12H12C12.4142 12 12.75 11.6642 12.75 11.25C12.75 10.8358 12.4142 10.5 12 10.5H8.25Z"
+                  fill=""
+                />
+              </svg>
+              Mes articles
+            </DropdownItem>
+          </li>
+          <li>
+            <DropdownItem
+              onItemClick={closeDropdown}
+              tag="a"
+              href="/profile/settings"
+              className="flex items-center gap-3 px-3 py-2.5 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
                 className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
@@ -128,15 +236,15 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
                   fill=""
                 />
               </svg>
-              Account settings
+              Paramètres
             </DropdownItem>
           </li>
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              href="/help"
+              className="flex items-center gap-3 px-3 py-2.5 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
                 className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
@@ -153,17 +261,18 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
                   fill=""
                 />
               </svg>
-              Support
+              Aide & Support
             </DropdownItem>
           </li>
         </ul>
-        <Link
-          onClick={() => logout()}
-          href="/signin"
-          className="flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+        
+        {/* Bouton de déconnexion */}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 mt-1 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
         >
           <svg
-            className="fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"
+            className="fill-gray-500 group-hover:fill-red-600 dark:group-hover:fill-red-400"
             width="24"
             height="24"
             viewBox="0 0 24 24"
@@ -177,8 +286,8 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
               fill=""
             />
           </svg>
-          Sign out
-        </Link>
+          Déconnexion
+        </button>
       </Dropdown>
     </div>
   );

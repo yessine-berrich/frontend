@@ -156,17 +156,7 @@ export default function ArticlesPage() {
 
           {/* ===== Sidebar ===== */}
           <div className="space-y-6">
-            <div className="rounded-sm border bg-white px-7 py-6 shadow dark:bg-boxdark">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="text-2xl font-bold">156</h4>
-                  <span className="text-sm text-gray-500">Articles</span>
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                </div>
-              </div>
-            </div>
+           
 
             <TrendingArticles />
             <TopContributors />
