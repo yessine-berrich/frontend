@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import CreateTagModal from '@/components/modals/CreateTagModal';
 import TagsManager from '@/components/tags/tagsManager';
-
+import { toast } from 'react-hot-toast'; // Recommandé pour les retours utilisateurs
 
 interface TagItem {
   id: string;
@@ -13,71 +13,107 @@ interface TagItem {
   color?: string;
 }
 
-const initialTags: TagItem[] = [
-  { id: '1', name: 'React', count: 45, trending: true, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { id: '2', name: 'TypeScript', count: 38, trending: true, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { id: '3', name: 'JavaScript', count: 32, color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
-  { id: '4', name: 'Node.js', count: 28, color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
-  { id: '5', name: 'Next.js', count: 35, trending: true, color: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300' },
-  { id: '6', name: 'NestJS', count: 22, color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
-  { id: '7', name: 'PostgreSQL', count: 19, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { id: '8', name: 'MongoDB', count: 17, color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
-  { id: '9', name: 'Docker', count: 24, trending: true, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { id: '10', name: 'Kubernetes', count: 21, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { id: '11', name: 'Tailwind', count: 12, trending: true, color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300' },
-  { id: '12', name: 'GraphQL', count: 15, color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300' },
-  { id: '13', name: 'REST API', count: 14, color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
-  { id: '14', name: 'OpenAI', count: 18, trending: true, color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
-  { id: '15', name: 'LangChain', count: 10, trending: true, color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' },
-  { id: '16', name: 'IA', count: 15, trending: true, color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
-  { id: '17', name: 'LLM', count: 6, trending: true, color: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' },
-  { id: '18', name: 'DevOps', count: 25, color: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300' },
-  { id: '19', name: 'Microservices', count: 20, color: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300' },
-  { id: '20', name: 'AWS', count: 14, color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' },
-];
+const API_URL = "http://localhost:3000/api/tags";
 
 export default function TagsPage() {
-  const [tags, setTags] = useState<TagItem[]>(initialTags);
+  const [tags, setTags] = useState<TagItem[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'cloud' | 'list'>('cloud');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'cloud' | 'list'>('list');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Charger les tags depuis localStorage au montage
-  useEffect(() => {
-    const savedTags = localStorage.getItem('knowledgehub-tags');
-    if (savedTags) {
-      try {
-        setTags(JSON.parse(savedTags));
-      } catch (error) {
-        console.error('Erreur lors du chargement des tags:', error);
-      }
+  // --- 1. FONCTIONS API ---
+
+  // Charger les tags depuis le serveur
+  const fetchTags = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error('Erreur lors du chargement');
+      
+      const data = await response.json();
+      
+      // Adaptation des données NestJS -> Format TagItem
+      const formattedTags: TagItem[] = data.map((tag: any) => ({
+        id: tag.id.toString(),
+        name: tag.name,
+        // On compte les articles liés pour définir la popularité/tendance
+        count: tag.articles ? tag.articles.length : 0,
+        trending: tag.articles && tag.articles.length > 5,
+        color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+      }));
+      
+      setTags(formattedTags);
+    } catch (error) {
+      console.error(error);
+      toast.error("Impossible de récupérer les tags");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Sauvegarder les tags dans localStorage quand ils changent
   useEffect(() => {
-    localStorage.setItem('knowledgehub-tags', JSON.stringify(tags));
-  }, [tags]);
+    fetchTags();
+  }, [fetchTags]);
 
-  const handleCreateTag = (tagName: string) => {
-    const newTag: TagItem = {
-      id: Date.now().toString(),
-      name: tagName,
-      count: 0,
-      color: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300'
-    };
-    setTags(prev => [...prev, newTag]);
-  };
+  // Créer un tag (POST)
+  const handleCreateTag = async (tagName: string) => {
+    const token = localStorage.getItem('auth_token');
+    
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: tagName }),
+      });
 
-  const handleDeleteTag = (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce tag ?')) {
-      setTags(prev => prev.filter(tag => tag.id !== id));
+      if (!response.ok) {
+        if (response.status === 403) throw new Error("Vous n'avez pas les droits");
+        throw new Error('Erreur de création');
+      }
+
+      toast.success('Tag créé avec succès');
+      fetchTags(); // Rafraîchir la liste
+      setIsCreateModalOpen(false);
+    } catch (error: any) {
+      toast.error(error.message);
     }
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
+  // Supprimer un tag (DELETE)
+  const handleDeleteTag = async (id: string) => {
+    const token = localStorage.getItem('auth_token');
+    
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce tag ?')) {
+      try {
+        const response = await fetch(`${API_URL}/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+        });
+
+        if (!response.ok) throw new Error('Suppression échouée');
+
+        setTags(prev => prev.filter(tag => tag.id !== id));
+        toast.success('Tag supprimé');
+      } catch (error: any) {
+        toast.error("Erreur : Vérifiez vos permissions (Admin requis)");
+      }
+    }
   };
+
+  // --- 2. RENDU ---
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -89,7 +125,7 @@ export default function TagsPage() {
               Gestion des Tags
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Organisez vos connaissances avec des tags
+              Connecté à la base de données KnowledgeHub
             </p>
           </div>
           
@@ -108,7 +144,7 @@ export default function TagsPage() {
         <TagsManager
           tags={tags}
           onDeleteTag={handleDeleteTag}
-          onSearch={handleSearch}
+          onSearch={() => {}} // Géré en interne par TagsManager
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onCreateTagClick={() => setIsCreateModalOpen(true)}
@@ -124,19 +160,10 @@ export default function TagsPage() {
 
       <style jsx global>{`
         @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.4s ease-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
       `}</style>
     </div>
   );

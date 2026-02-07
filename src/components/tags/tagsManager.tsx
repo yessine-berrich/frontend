@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Tag, TrendingUp, Hash, Search, Plus, X } from "lucide-react"; // Ajoutez Plus et X ici
+import { motion, AnimatePresence } from "framer-motion";
+import { Tag as TagIcon, TrendingUp, Hash, Search, Plus, X, List, Cloud } from "lucide-react";
 
 interface TagItem {
   id: string;
@@ -32,236 +32,251 @@ export default function TagsManager({
 }: TagsManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
+  // --- LOGIQUE DE CALCUL ---
+
+  // Filtrage par recherche
   const filteredTags = useMemo(() => {
-    return tags.filter(tag =>
+    const filtered = tags.filter(tag =>
       tag.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+    return filtered;
   }, [tags, searchQuery]);
 
+  // Tags Tendance (Extraits de la liste globale filtrée ou non)
   const trendingTags = useMemo(() => {
-    return tags.filter(tag => tag.trending);
+    return tags.filter(tag => tag.trending).sort((a, b) => b.count - a.count);
   }, [tags]);
 
+  // Tri par utilisation (décroissant)
   const sortedTags = useMemo(() => {
     return [...filteredTags].sort((a, b) => b.count - a.count);
   }, [filteredTags]);
 
-  const maxCount = useMemo(() => {
-    return Math.max(...tags.map(t => t.count));
+  // Utilisation totale (somme de tous les articles liés)
+  const totalUsage = useMemo(() => {
+    return tags.reduce((sum, tag) => sum + tag.count, 0);
   }, [tags]);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    onSearch(query);
+  // Détermination de la taille maximale pour le ratio du nuage
+  const maxCount = useMemo(() => {
+    return tags.length > 0 ? Math.max(...tags.map(t => t.count)) : 0;
+  }, [tags]);
+
+  // --- HELPERS UI ---
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    onSearch(val);
   };
 
-  const getTagSize = (count: number) => {
+  const getTagSizeClass = (count: number) => {
+    if (maxCount === 0) return "text-sm px-3 py-1";
     const ratio = count / maxCount;
-    if (ratio > 0.7) return "text-2xl font-bold px-6 py-3";
-    if (ratio > 0.5) return "text-xl font-semibold px-5 py-2.5";
-    if (ratio > 0.3) return "text-lg font-medium px-4 py-2";
-    return "text-base px-3 py-1.5";
+    if (ratio > 0.8) return "text-2xl font-bold px-6 py-3 shadow-md";
+    if (ratio > 0.5) return "text-xl font-semibold px-5 py-2";
+    if (ratio > 0.2) return "text-base font-medium px-4 py-1.5";
+    return "text-sm px-3 py-1";
   };
 
   const getTagColor = (tag: TagItem) => {
     if (tag.color) return tag.color;
-    if (tag.trending) return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
-    return "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300";
+    if (tag.trending) return "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800";
+    return "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700";
   };
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Tags</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{tags.length}</p>
-            </div>
-            <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Tag className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Tags tendance</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{trendingTags.length}</p>
-            </div>
-            <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Utilisation totale</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {tags.reduce((sum, tag) => sum + tag.count, 0)}
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Hash className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative max-w-lg">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Rechercher un tag..."
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
-        />
-      </div>
-
-      {/* Trending Tags */}
-      {trendingTags.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-semibold text-gray-900 dark:text-white">Tags tendance</h3>
-            </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Les plus utilisés cette semaine
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {trendingTags.map((tag) => (
-              <button
-                key={tag.id}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 shadow-md"
-              >
-                <TrendingUp className="h-3 w-3" />
-                <span className="font-medium">{tag.name}</span>
-                <span className="text-xs opacity-80">{tag.count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* View Toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2 border border-gray-200 dark:border-gray-800 rounded-lg p-1 bg-white dark:bg-gray-900">
-            <button
-              onClick={() => onViewModeChange('cloud')}
-              className={`px-4 py-2 rounded-md transition-all text-sm font-medium ${
-                viewMode === 'cloud'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              Vue nuage
-            </button>
-            <button
-              onClick={() => onViewModeChange('list')}
-              className={`px-4 py-2 rounded-md transition-all text-sm font-medium ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              Vue liste
-            </button>
-        </div>
-        <button
-          onClick={onCreateTagClick}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+    <div className="space-y-8">
+      {/* SECTION 1: STATS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
         >
-          <Plus className="h-4 w-4" />
-          Nouveau tag
-        </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Tags</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{tags.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <TagIcon className="w-6 h-6" />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tags Tendance</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{trendingTags.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600 dark:text-green-400">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Utilisation Totale</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{totalUsage}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <Hash className="w-6 h-6" />
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Tags Display */}
-      {viewMode === "cloud" ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-8">
-          {sortedTags.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              {sortedTags.map((tag, index) => (
-                <motion.div
-                  key={tag.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.02 }}
-                >
-                  <button
-                    className={`${getTagSize(tag.count)} rounded-xl transition-all hover:scale-110 hover:shadow-lg ${getTagColor(tag)}`}
-                  >
-                    <Hash className="inline h-4 w-4 mr-2 opacity-60" />
-                    {tag.name}
-                    <span className="ml-2 text-xs opacity-70">({tag.count})</span>
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <Search className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">Aucun tag ne correspond à votre recherche</p>
-            </div>
-          )}
+      {/* SECTION 2: CONTROLS (SEARCH & VIEW) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher un tag (ex: #react)..."
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+          />
         </div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-          {sortedTags.length > 0 ? (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sortedTags.map((tag, index) => (
-                <motion.div
+
+        <div className="flex items-center gap-3">
+          <div className="flex p-1 bg-gray-100 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+            <button
+              onClick={() => onViewModeChange("cloud")}
+              className={`p-2 rounded-lg transition-all ${viewMode === "cloud" ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+              title="Vue Nuage"
+            >
+              <Cloud className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => onViewModeChange("list")}
+              className={`p-2 rounded-lg transition-all ${viewMode === "list" ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+              title="Vue Liste"
+            >
+              <List className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <button
+            onClick={onCreateTagClick}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all shadow-md hover:shadow-lg active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            Nouveau Tag
+          </button>
+        </div>
+      </div>
+
+      {/* SECTION 3: TRENDING QUICK ACCESS */}
+      <AnimatePresence>
+        {trendingTags.length > 0 && searchQuery === "" && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded-2xl p-4 border border-blue-100 dark:border-blue-900/30">
+              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Tags les plus utilisés
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {trendingTags.slice(0, 5).map(tag => (
+                  <span key={tag.id} className="px-3 py-1 bg-white dark:bg-gray-800 rounded-full text-xs font-bold text-blue-600 dark:text-blue-400 shadow-sm border border-blue-100 dark:border-blue-900/50">
+                    {tag.name} <span className="ml-1 opacity-60">{tag.count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SECTION 4: MAIN DISPLAY */}
+      <div className="min-h-[400px]">
+        {viewMode === "cloud" ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-10 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-center gap-6">
+            {sortedTags.length > 0 ? (
+              sortedTags.map((tag, idx) => (
+                <motion.button
                   key={tag.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.02 }}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: idx * 0.03 }}
+                  whileHover={{ scale: 1.1, zIndex: 10 }}
+                  className={`${getTagSizeClass(tag.count)} ${getTagColor(tag)} rounded-2xl transition-all duration-300 flex items-center gap-2 group relative`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getTagColor(tag)}`}>
-                      <Hash className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium text-gray-900 dark:text-white">{tag.name}</span>
-                        {tag.trending && (
-                          <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full text-xs flex items-center gap-1">
-                            <TrendingUp className="h-3 w-3" />
-                            Tendance
-                          </span>
-                        )}
+                  <Hash className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  {tag.name}
+                  <span className="text-[10px] bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded-md">
+                    {tag.count}
+                  </span>
+                </motion.button>
+              ))
+            ) : (
+              <EmptyState />
+            )}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {sortedTags.length > 0 ? (
+                sortedTags.map((tag, idx) => (
+                  <motion.div
+                    key={tag.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: idx * 0.02 }}
+                    className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTagColor(tag)}`}>
+                        <Hash className="w-5 h-5" />
                       </div>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Utilisé dans {tag.count} article{tag.count > 1 ? "s" : ""}
-                      </span>
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                          {tag.name}
+                          {tag.trending && <TrendingUp className="w-3 h-3 text-green-500" />}
+                        </p>
+                        <p className="text-xs text-gray-500">{tag.count} article(s) lié(s)</p>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => onDeleteTag(tag.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="Supprimer le tag"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </motion.div>
-              ))}
+                    
+                    <button
+                      onClick={() => onDeleteTag(tag.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </motion.div>
+                ))
+              ) : (
+                <EmptyState />
+              )}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <Tag className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">Aucun tag trouvé</p>
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+      <div className="w-20 h-20 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center text-gray-300">
+        <Search className="w-10 h-10" />
+      </div>
+      <div>
+        <p className="text-gray-900 dark:text-white font-medium">Aucun tag trouvé</p>
+        <p className="text-sm text-gray-500">Essayez une autre recherche ou créez-en un nouveau.</p>
+      </div>
     </div>
   );
 }
