@@ -17,8 +17,9 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
-import { Home, Calendar, UserCircle, Tag, Folder } from 'lucide-react';
+import { Home, Calendar, UserCircle, Tag, Folder, User2, Users, ChartArea } from 'lucide-react';
 import SidebarWidget from "./SidebarWidget";
+import StatisticsChart from "@/components/ecommerce/StatisticsChart";
 
 type NavItem = {
   name: string;
@@ -55,9 +56,14 @@ const navItems: NavItem[] = [
   path: "/categories",
 },
 {
-  icon: <Folder className="w-5 h-5" />,
+  icon: <Users className="w-5 h-5" />,
   name: "users",
   path: "/users",
+},
+{
+  icon: <ChartArea className="w-5 h-5" />,
+  name: "statistics",
+  path: "/statistics",
 },
   {
     icon: <CalenderIcon />,

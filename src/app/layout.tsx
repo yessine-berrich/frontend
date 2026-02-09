@@ -20,7 +20,6 @@ export default function RootLayout({
         <ThemeProvider>
           <SidebarProvider>{children}</SidebarProvider>
         </ThemeProvider>
-        <AIAssistant />
       </body>
     </html>
   );

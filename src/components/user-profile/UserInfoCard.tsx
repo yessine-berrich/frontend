@@ -21,7 +21,7 @@ export default function UserInfoCard() {
     const formData = new FormData(e.currentTarget);
     const payload = Object.fromEntries(formData.entries());
     try {
-      const updated = await updateProfile(user.id, payload);
+      const updated = await updateProfile(user.id, formData);
       setUser(updated);
       closeModal();
     } catch (error) { console.error(error); }

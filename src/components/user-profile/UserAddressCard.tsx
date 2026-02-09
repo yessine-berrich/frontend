@@ -21,7 +21,7 @@ export default function UserAddressCard() {
     const formData = new FormData(e.currentTarget);
     const payload = Object.fromEntries(formData.entries());
     try {
-      const updated = await updateProfile(user.id, payload);
+      const updated = await updateProfile(user.id, formData);
       setUser(updated);
       closeModal();
     } catch (error) { console.error(error); }
@@ -51,7 +51,6 @@ export default function UserAddressCard() {
               <div><Label>Country</Label><Input name="country" defaultValue={user?.country} /></div>
               <div><Label>City/State</Label><Input name="city" defaultValue={user?.city} /></div>
               <div><Label>Postal Code</Label><Input name="postalCode" defaultValue={user?.postalCode} /></div>
-              <div><Label>TAX ID</Label><Input name="taxId" defaultValue={user?.taxId} /></div>
             </div>
             <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
               <Button size="sm" variant="outline" type="button" onClick={closeModal}>Close</Button>

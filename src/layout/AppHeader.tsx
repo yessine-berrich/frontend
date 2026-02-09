@@ -166,15 +166,32 @@ const AppHeader: React.FC = () => {
           >
             <div className="flex items-center gap-2 2xsm:gap-3">
               {/* Create Button */}
-              <button
-                onClick={() => setCreateModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg active:scale-95"
-                aria-label="Create Article"
-              >
-                <Plus size={18} />
-                <span className="hidden sm:inline">Créer</span>
-              </button>
-
+                                    <button
+                      onClick={() => setCreateModalOpen(true)}
+  className="relative flex items-center justify-center h-11 w-11 rounded-full
+             bg-white border border-gray-200 text-gray-500
+             transition-colors
+             hover:bg-gray-100 hover:text-gray-700
+             dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400
+             dark:hover:bg-gray-800 dark:hover:text-white"
+  title="Ajouter un article"
+>
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M12 5V19M5 12H19"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+</button>
               {/* Dark Mode Toggler */}
               <ThemeToggleButton />
 

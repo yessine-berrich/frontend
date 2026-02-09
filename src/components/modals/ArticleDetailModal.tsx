@@ -237,19 +237,6 @@ export default function ArticleDetailModal({
               </div>
             </div>
           </div>
-
-          {/* Stats Quick View */}
-          <div className="flex items-center gap-4 mr-4">
-            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
-              <span className="text-sm font-medium">{likesCount}</span>
-            </div>
-            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <MessageCircle size={16} />
-              <span className="text-sm font-medium">{article.stats.comments + comments.length}</span>
-            </div>
-          </div>
-
           {/* Close Button */}
           <button
             onClick={onClose}
