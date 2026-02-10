@@ -1,167 +1,315 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import ArticleCard from '@/components/article/ArticleCard';
 import TrendingArticles from '@/components/article/Trendingarticles';
 import TopContributors from '@/components/users/Topcontributors';
-import { FileText } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 
-/* =========================
-   Article complet (exemple)
-   ========================= */
-const featuredArticle = {
-  id: '1',
-  title: 'Guide complet pour démarrer avec React et TypeScript en 2024',
-  description:
-    'Découvrez comment configurer et optimiser votre projet React avec TypeScript pour une meilleure productivité.',
-  content: `Dans cet article, nous allons explorer les meilleures pratiques pour créer une application React avec TypeScript...
+interface Author {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profileImage?: string | null;
+  role: string;
+}
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+interface Category {
+  id: number;
+  name: string;
+  description?: string;
+}
 
-Section importante
+interface Tag {
+  id: number;
+  name: string;
+}
 
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-
-Points clés :
-- Configuration du projet
-- Typage avancé
-- Bonnes pratiques`,
-  author: {
-    name: 'Jean Dupont',
-    initials: 'JD',
-    department: 'IT',
-  },
-  category: {
-    name: 'Développement',
-    slug: 'developpement',
-  },
-  tags: ['#React', '#TypeScript', '#Guide'],
-  isFeatured: true,
-  publishedAt: '2024-02-02T10:00:00Z',
-  updatedAt: '2024-02-04T15:30:00Z',
-  status: 'published' as const,
-  stats: {
-    likes: 42,
-    comments: 8,
-    views: 1250,
-  },
-  isLiked: false,
-  isBookmarked: false,
-};
-
-/* =========================
-   Liste des articles
-   ========================= */
-const articles = [
-  featuredArticle,
-  {
-    id: '2',
-    title: 'Nouvelles politiques RH : Télétravail et flexibilité',
-    description:
-      'Découvrez les nouvelles modalités de télétravail et les options de flexibilité disponibles.',
-    author: {
-      name: 'Sophie Laurent',
-      initials: 'SL',
-      department: 'RH',
-    },
-    category: {
-      name: 'RH',
-      slug: 'rh',
-    },
-    tags: ['#RH', '#Télétravail'],
-    isFeatured: false,
-    publishedAt: '2024-02-03T14:30:00Z',
-    status: 'published' as const,
-    stats: {
-      likes: 89,
-      comments: 12,
-      views: 2540,
-    },
-    isLiked: true,
-    isBookmarked: true,
-  },
-  {
-    id: '3',
-    title: 'Best practices pour le design system',
-    description:
-      'Un guide complet pour utiliser efficacement le design system.',
-    author: {
-      name: 'Marie Martin',
-      initials: 'MM',
-      department: 'Design',
-    },
-    category: {
-      name: 'Design',
-      slug: 'design',
-    },
-    tags: ['#Design', '#UI'],
-    isFeatured: false,
-    publishedAt: '2024-02-01T09:15:00Z',
-    status: 'published' as const,
-    stats: {
-      likes: 67,
-      comments: 15,
-      views: 890,
-    },
-    isLiked: false,
-    isBookmarked: false,
-  },
-];
+interface Article {
+  id: number;
+  title: string;
+  content: string;
+  status: string;
+  viewsCount: number;
+  author: Author;
+  category: Category;
+  tags: Tag[];
+  media: any[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function ArticlesPage() {
-  const handleLike = (id: string) => console.log('Like:', id);
-  const handleBookmark = (id: string) => console.log('Bookmark:', id);
-  const handleShare = (id: string) => console.log('Share:', id);
-  const handleEdit = (id: string) => console.log('Edit:', id);
-  const handleDelete = (id: string) => console.log('Delete:', id);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | undefined>();
+  const [userToken, setUserToken] = useState<string | undefined>();
+
+  useEffect(() => {
+    // Récupérer les informations de l'utilisateur connecté
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('token');
+    
+    if (userId) setCurrentUserId(parseInt(userId));
+    if (token) setUserToken(token);
+    
+    fetchArticles();
+  }, []);
+
+  const fetchArticles = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3000/api/articles');
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setArticles(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      console.error('Erreur:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = async (id: string) => {
+    try {
+      const response = await fetch(`/api/articles/${id}/like`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        console.log('Article liké:', id);
+        // Mettre à jour localement
+        setArticles(prev => prev.map(article => {
+          if (article.id.toString() === id) {
+            return { ...article, isLiked: true };
+          }
+          return article;
+        }));
+      }
+    } catch (err) {
+      console.error('Erreur lors du like:', err);
+    }
+  };
+
+  const handleBookmark = async (id: string) => {
+    try {
+      const response = await fetch(`/api/articles/${id}/bookmark`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        console.log('Article bookmarké:', id);
+      }
+    } catch (err) {
+      console.error('Erreur lors du bookmark:', err);
+    }
+  };
+
+  const handleShare = (id: string) => {
+    const article = articles.find(a => a.id.toString() === id);
+    if (!article) return;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: article.title,
+        text: article.content.substring(0, 100),
+        url: `${window.location.origin}/articles/${id}`,
+      });
+    } else {
+      // Fallback: copier dans le presse-papier
+      navigator.clipboard.writeText(`${window.location.origin}/articles/${id}`);
+      alert('Lien copié dans le presse-papier !');
+    }
+  };
+
+  const handleEdit = (id: string) => {
+    console.log('Edit:', id);
+    window.location.href = `/articles/edit/${id}`;
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
+
+    try {
+      const response = await fetch(`/api/articles/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        setArticles(prev => prev.filter(article => article.id.toString() !== id));
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+    }
+  };
+
+  // Transformer les données de l'API pour correspondre au composant ArticleCard
+  const transformArticleForCard = (article: Article) => {
+    // Compter les commentaires (vous devrez récupérer cela de votre API)
+    const getCommentsCount = async (articleId: number) => {
+      try {
+        const response = await fetch(`/api/comments/article/${articleId}/stats`);
+        if (response.ok) {
+          const data = await response.json();
+          return data.total || 0;
+        }
+      } catch (err) {
+        console.error('Erreur lors du chargement des commentaires:', err);
+      }
+      return 0;
+    };
+
+    return {
+      id: article.id.toString(),
+      title: article.title,
+      description: article.content.substring(0, 150) + '...',
+      content: article.content,
+      author: {
+        id: article.author.id,
+        name: `${article.author.firstName} ${article.author.lastName}`,
+        initials: `${article.author.firstName.charAt(0)}${article.author.lastName.charAt(0)}`,
+        department: article.author.role,
+        avatar: article.author.profileImage || undefined,
+      },
+      category: {
+        name: article.category.name,
+        slug: article.category.name.toLowerCase().replace(/\s+/g, '-'),
+      },
+      tags: article.tags.map(tag => tag.name),
+      isFeatured: false,
+      publishedAt: article.createdAt,
+      updatedAt: article.updatedAt,
+      status: article.status as 'draft' | 'published' | 'pending',
+      stats: {
+        likes: 0, // À récupérer de l'API
+        comments: 0, // À récupérer de l'API
+        views: article.viewsCount,
+      },
+      isLiked: false,
+      isBookmarked: false,
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Chargement des articles...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 dark:text-red-400 mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Erreur</h3>
+          <p className="text-gray-600 dark:text-gray-400">{error}</p>
+          <button
+            onClick={fetchArticles}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* En-tête */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Articles de la communauté
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Découvrez les derniers articles partagés par nos collaborateurs
+          </p>
+        </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ===== Main Content ===== */}
           <div className="lg:col-span-2 space-y-6">
+            {articles.length === 0 ? (
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-8 text-center">
+                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Aucun article disponible
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Soyez le premier à partager votre savoir !
+                </p>
+                {currentUserId && (
+                  <button
+                    onClick={() => window.location.href = '/articles/create'}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Créer un article
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Articles */}
+                {articles.map((article) => (
+                  <ArticleCard
+                    key={article.id}
+                    article={transformArticleForCard(article)}
+                    currentUserId={currentUserId}
+                    userToken={userToken}
+                    onLike={handleLike}
+                    onBookmark={handleBookmark}
+                    onShare={handleShare}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    showActions
+                  />
+                ))}
+              </>
+            )}
 
-            {/* Featured article */}
-            <ArticleCard
-              article={featuredArticle}
-              onLike={handleLike}
-              onBookmark={handleBookmark}
-              onShare={handleShare}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              showActions
-            />
-
-            {/* Other articles */}
-            {articles.slice(1).map((article) => (
-              <ArticleCard
-                key={article.id}
-                article={article}
-                onLike={handleLike}
-                onBookmark={handleBookmark}
-                onShare={handleShare}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                showActions
-              />
-            ))}
-
-            <div className="text-center">
-              <button className="px-6 py-3 bg-white dark:bg-gray-900 border rounded-lg">
-                Charger plus d'articles
-              </button>
-            </div>
+            {/* Bouton Charger plus */}
+            {articles.length > 0 && (
+              <div className="text-center">
+                <button 
+                  onClick={fetchArticles}
+                  className="px-6 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Actualiser les articles
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ===== Sidebar ===== */}
           <div className="space-y-6">
-           
-
             <TrendingArticles />
             <TopContributors />
           </div>
-
         </div>
       </div>
     </div>

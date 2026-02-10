@@ -1,4 +1,3 @@
-// components/modals/ArticleDetailModal.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,13 +5,13 @@ import { X, Heart, Eye, Share2, Bookmark } from 'lucide-react';
 import MarkdownPreview from '../markdoun-editor/MarkdownPreview';
 import CommentsSection from '../comments/commentsSection';
 
-
 interface Article {
   id: string;
   title: string;
   content: string;
   description: string;
   author: {
+    id?: number;
     name: string;
     initials: string;
     department: string;
@@ -26,7 +25,7 @@ interface Article {
   isFeatured?: boolean;
   publishedAt: string;
   updatedAt?: string;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'pending';
   stats: {
     likes: number;
     comments: number;
@@ -40,43 +39,19 @@ interface ArticleDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   article: Article;
+  currentUserId?: number;
+  userToken?: string;
   onLike?: () => void;
   onBookmark?: () => void;
   onShare?: () => void;
 }
 
-// Données de commentaires mock
-const MOCK_COMMENTS = [
-  {
-    id: '1',
-    author: { name: 'Marie Martin', initials: 'MM' },
-    content: 'Excellent article ! Très utile pour les débutants. Je vais appliquer ces conseils dans mon prochain projet.',
-    likes: 5,
-    createdAt: '2024-02-03T10:30:00Z',
-    isLiked: false,
-  },
-  {
-    id: '2',
-    author: { name: 'Pierre Bernard', initials: 'PB' },
-    content: 'Merci pour ce guide détaillé ! La section sur les bonnes pratiques est particulièrement utile.',
-    likes: 3,
-    createdAt: '2024-02-03T14:20:00Z',
-    isLiked: false,
-  },
-  {
-    id: '3',
-    author: { name: 'Sophie Laurent', initials: 'SL' },
-    content: 'Très bon article, j\'ai appris plusieurs choses. Est-ce que vous prévoyez une suite sur les sujets avancés ?',
-    likes: 8,
-    createdAt: '2024-02-04T09:15:00Z',
-    isLiked: true,
-  },
-];
-
 export default function ArticleDetailModal({
   isOpen,
   onClose,
   article,
+  currentUserId,
+  userToken,
   onLike,
   onBookmark,
   onShare,
@@ -116,16 +91,6 @@ export default function ArticleDetailModal({
     }
   };
 
-  const handleAddComment = (content: string) => {
-    console.log('Nouveau commentaire ajouté:', content);
-    // Ici, vous enverriez le commentaire à votre API
-  };
-
-  const handleLikeComment = (commentId: string) => {
-    console.log('Commentaire liké:', commentId);
-    // Ici, vous enverriez le like à votre API
-  };
-
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -135,7 +100,7 @@ export default function ArticleDetailModal({
     const diffInYears = Math.floor(diffInDays / 365);
 
     if (diffInYears > 0) {
-      return `il y a environ ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
+      return `il y a ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
     } else if (diffInDays > 0) {
       return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
     } else if (diffInHours > 0) {
@@ -144,6 +109,21 @@ export default function ArticleDetailModal({
       return 'il y a quelques minutes';
     }
   };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'published':
+        return { text: 'Publié', color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' };
+      case 'pending':
+        return { text: 'En attente', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400' };
+      case 'draft':
+        return { text: 'Brouillon', color: 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-400' };
+      default:
+        return { text: status, color: 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-400' };
+    }
+  };
+
+  const statusBadge = getStatusBadge(article.status);
 
   if (!isOpen) return null;
 
@@ -184,10 +164,11 @@ export default function ArticleDetailModal({
             </div>
           </div>
 
-              {/* Close Button */}
+          {/* Close Button */}
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+            aria-label="Fermer"
           >
             <X size={24} />
           </button>
@@ -197,7 +178,7 @@ export default function ArticleDetailModal({
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {/* Article Content */}
           <div className="p-6 space-y-6">
-            {/* Category & Featured */}
+            {/* Category & Featured & Status */}
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-sm font-medium rounded-full">
                 {article.category.name}
@@ -210,14 +191,9 @@ export default function ArticleDetailModal({
                   Featured
                 </span>
               )}
-              {article.status === 'published' && (
-                <span className="flex items-center gap-1 px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium rounded-full">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="3" fill="currentColor" />
-                  </svg>
-                  Validé
-                </span>
-              )}
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge.color}`}>
+                {statusBadge.text}
+              </span>
             </div>
 
             {/* Title */}
@@ -242,7 +218,7 @@ export default function ArticleDetailModal({
                   key={tag}
                   className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                 >
-                  #{tag}
+                  {tag}
                 </span>
               ))}
             </div>
@@ -253,7 +229,7 @@ export default function ArticleDetailModal({
                 <Eye size={16} />
                 <span>{article.stats.views} vues</span>
               </div>
-              {article.updatedAt && (
+              {article.updatedAt && article.updatedAt !== article.publishedAt && (
                 <>
                   <span>•</span>
                   <span>Mis à jour {getTimeAgo(article.updatedAt)}</span>
@@ -264,11 +240,9 @@ export default function ArticleDetailModal({
 
           {/* Comments Section */}
           <CommentsSection
-            articleId={article.id}
-            initialComments={MOCK_COMMENTS}
-            commentsCount={article.stats.comments}
-            onAddComment={handleAddComment}
-            onLikeComment={handleLikeComment}
+            articleId={parseInt(article.id)}
+            currentUserId={currentUserId}
+            token={userToken}
           />
         </div>
 
@@ -280,6 +254,7 @@ export default function ArticleDetailModal({
               <button
                 onClick={handleLike}
                 className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors group/like"
+                aria-label={isLiked ? "Retirer le like" : "Aimer l'article"}
               >
                 <Heart
                   size={20}
@@ -294,6 +269,7 @@ export default function ArticleDetailModal({
                 onClick={handleShare}
                 className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors"
                 title="Partager"
+                aria-label="Partager l'article"
               >
                 <Share2 size={20} />
                 <span className="text-sm font-medium hidden sm:inline">Partager</span>
@@ -309,7 +285,8 @@ export default function ArticleDetailModal({
                     ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-yellow-400'
                 }`}
-                title="Enregistrer"
+                title={isBookmarked ? "Retirer des favoris" : "Ajouter aux favoris"}
+                aria-label={isBookmarked ? "Retirer des favoris" : "Ajouter aux favoris"}
               >
                 <Bookmark
                   size={20}

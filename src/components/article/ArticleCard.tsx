@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal, Download, Printer, FileText, User } from 'lucide-react';
+import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal, Download, Printer, FileText, User, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ArticleDetailModal from '@/components/modals/ArticleDetailModal';
 
@@ -12,7 +12,7 @@ interface ArticleCardProps {
     description: string;
     content: string;
     author: {
-      id?: string; // Ajout de l'ID de l'auteur
+      id?: number;
       name: string;
       initials: string;
       department: string;
@@ -26,7 +26,7 @@ interface ArticleCardProps {
     isFeatured?: boolean;
     publishedAt: string;
     updatedAt?: string;
-    status: 'draft' | 'published';
+    status: 'draft' | 'published' | 'pending';
     stats: {
       likes: number;
       comments: number;
@@ -89,7 +89,7 @@ export default function ArticleCard({
       navigator.share({
         title: article.title,
         text: article.description,
-        url: window.location.href + '/article/' + article.id,
+        url: `${window.location.origin}/articles/${article.id}`,
       });
     }
   };
@@ -98,12 +98,13 @@ export default function ArticleCard({
     setIsModalOpen(true);
   };
 
-  // Fonction pour naviguer vers le profil de l'auteur
   const navigateToAuthorProfile = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Empêche l'ouverture de la modal
-    // Si l'auteur a un ID, on l'utilise, sinon on utilise son nom pour l'URL
-    const authorId = article.author.id || encodeURIComponent(article.author.name);
-    router.push(`/profile/${authorId}`);
+    e.stopPropagation();
+    if (article.author.id) {
+      router.push(`/profile/${article.author.id}`);
+    } else {
+      router.push(`/profile/${encodeURIComponent(article.author.name)}`);
+    }
   };
 
   const getTimeAgo = (dateString: string) => {
@@ -115,7 +116,7 @@ export default function ArticleCard({
     const diffInYears = Math.floor(diffInDays / 365);
 
     if (diffInYears > 0) {
-      return `il y a environ ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
+      return `il y a ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
     } else if (diffInDays > 0) {
       return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
     } else if (diffInHours > 0) {
@@ -125,7 +126,21 @@ export default function ArticleCard({
     }
   };
 
-  // Fonction pour exporter en PDF
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'published':
+        return { text: 'Publié', color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' };
+      case 'pending':
+        return { text: 'En attente', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400' };
+      case 'draft':
+        return { text: 'Brouillon', color: 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-400' };
+      default:
+        return { text: status, color: 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-400' };
+    }
+  };
+
+  const statusBadge = getStatusBadge(article.status);
+
   const exportToPDF = () => {
     setIsExporting(true);
     setIsMenuOpen(false);
@@ -390,7 +405,6 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
             {/* Author Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Nom de l'auteur cliquable */}
                 <button
                   onClick={navigateToAuthorProfile}
                   className="group/name flex items-center gap-1.5"
@@ -407,17 +421,8 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <span>{getTimeAgo(article.publishedAt)}</span>
                 <span>•</span>
-                <span className="flex items-center gap-1">
-                  {article.status === 'published' ? (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-green-500">
-                        <circle cx="8" cy="8" r="3" fill="currentColor" />
-                      </svg>
-                      <span className="text-green-600 dark:text-green-500 font-medium">Publié</span>
-                    </>
-                  ) : (
-                    <span className="text-gray-500">Brouillon</span>
-                  )}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge.color}`}>
+                  {statusBadge.text}
                 </span>
               </div>
             </div>
@@ -501,22 +506,40 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
 
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(window.location.href + '/article/' + article.id);
+                      navigator.clipboard.writeText(`${window.location.origin}/articles/${article.id}`);
                       setIsMenuOpen(false);
+                      alert('Lien copié dans le presse-papier !');
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     Copier le lien
                   </button>
-                  <button
-                    onClick={() => {
-                      onDelete?.(article.id);
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Supprimer
-                  </button>
+                  
+                  {onEdit && (
+                    <button
+                      onClick={() => {
+                        onEdit?.(article.id);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-2"
+                    >
+                      <Edit size={16} />
+                      <span>Modifier</span>
+                    </button>
+                  )}
+                  
+                  {onDelete && (
+                    <button
+                      onClick={() => {
+                        onDelete?.(article.id);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 size={16} />
+                      <span>Supprimer</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -553,7 +576,7 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
           {article.tags.map((tag) => (
             <span
               key={tag}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+              className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
             >
               {tag}
             </span>
@@ -580,7 +603,7 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
               <span className="text-sm font-medium">{likesCount}</span>
             </button>
 
-            {/* Comments - Clickable to open modal */}
+            {/* Comments */}
             <button
               onClick={handleOpenModal}
               className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
