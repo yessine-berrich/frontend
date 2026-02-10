@@ -50,8 +50,6 @@ export default function ArticleDetailModal({
   isOpen,
   onClose,
   article,
-  currentUserId,
-  userToken,
   onLike,
   onBookmark,
   onShare,
@@ -239,10 +237,7 @@ export default function ArticleDetailModal({
           </div>
 
           {/* Comments Section */}
-          <CommentsSection
-            articleId={parseInt(article.id)}
-            currentUserId={currentUserId}
-            token={userToken}
+          <CommentsSection articleId={parseInt(article.id)}
           />
         </div>
 
