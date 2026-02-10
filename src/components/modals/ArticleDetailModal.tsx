@@ -1,20 +1,11 @@
+// components/modals/ArticleDetailModal.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Heart, MessageCircle, Eye, Share2, Bookmark, Send, MoreHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Heart, Eye, Share2, Bookmark } from 'lucide-react';
+import MarkdownPreview from '../markdoun-editor/MarkdownPreview';
+import CommentsSection from '../comments/commentsSection';
 
-interface Comment {
-  id: string;
-  author: {
-    name: string;
-    initials: string;
-    avatar?: string;
-  };
-  content: string;
-  likes: number;
-  createdAt: string;
-  isLiked?: boolean;
-}
 
 interface Article {
   id: string;
@@ -54,6 +45,34 @@ interface ArticleDetailModalProps {
   onShare?: () => void;
 }
 
+// Données de commentaires mock
+const MOCK_COMMENTS = [
+  {
+    id: '1',
+    author: { name: 'Marie Martin', initials: 'MM' },
+    content: 'Excellent article ! Très utile pour les débutants. Je vais appliquer ces conseils dans mon prochain projet.',
+    likes: 5,
+    createdAt: '2024-02-03T10:30:00Z',
+    isLiked: false,
+  },
+  {
+    id: '2',
+    author: { name: 'Pierre Bernard', initials: 'PB' },
+    content: 'Merci pour ce guide détaillé ! La section sur les bonnes pratiques est particulièrement utile.',
+    likes: 3,
+    createdAt: '2024-02-03T14:20:00Z',
+    isLiked: false,
+  },
+  {
+    id: '3',
+    author: { name: 'Sophie Laurent', initials: 'SL' },
+    content: 'Très bon article, j\'ai appris plusieurs choses. Est-ce que vous prévoyez une suite sur les sujets avancés ?',
+    likes: 8,
+    createdAt: '2024-02-04T09:15:00Z',
+    isLiked: true,
+  },
+];
+
 export default function ArticleDetailModal({
   isOpen,
   onClose,
@@ -65,39 +84,6 @@ export default function ArticleDetailModal({
   const [isLiked, setIsLiked] = useState(article.isLiked || false);
   const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked || false);
   const [likesCount, setLikesCount] = useState(article.stats.likes);
-  const [newComment, setNewComment] = useState('');
-  const [commentsCollapsed, setCommentsCollapsed] = useState(false);
-  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
-  const commentsSectionRef = useRef<HTMLDivElement>(null);
-  const commentInputRef = useRef<HTMLInputElement>(null);
-
-  // Mock comments data
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: '1',
-      author: { name: 'Marie Martin', initials: 'MM' },
-      content: 'Excellent article ! Très utile pour les débutants. Je vais appliquer ces conseils dans mon prochain projet.',
-      likes: 5,
-      createdAt: '2024-02-03T10:30:00Z',
-      isLiked: false,
-    },
-    {
-      id: '2',
-      author: { name: 'Pierre Bernard', initials: 'PB' },
-      content: 'Merci pour ce guide détaillé ! La section sur les bonnes pratiques est particulièrement utile.',
-      likes: 3,
-      createdAt: '2024-02-03T14:20:00Z',
-      isLiked: false,
-    },
-    {
-      id: '3',
-      author: { name: 'Sophie Laurent', initials: 'SL' },
-      content: 'Très bon article, j\'ai appris plusieurs choses. Est-ce que vous prévoyez une suite sur les sujets avancés ?',
-      likes: 8,
-      createdAt: '2024-02-04T09:15:00Z',
-      isLiked: true,
-    },
-  ]);
 
   // Close on Escape
   useEffect(() => {
@@ -107,13 +93,6 @@ export default function ArticleDetailModal({
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
-
-  // Focus comment input when clicking on comment button
-  useEffect(() => {
-    if (!commentsCollapsed && commentInputRef.current) {
-      commentInputRef.current.focus();
-    }
-  }, [commentsCollapsed]);
 
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -137,47 +116,14 @@ export default function ArticleDetailModal({
     }
   };
 
-  const handleSendComment = () => {
-    if (!newComment.trim()) return;
-    
-    const newCommentObj: Comment = {
-      id: Date.now().toString(),
-      author: { name: 'Vous', initials: 'VO' },
-      content: newComment.trim(),
-      likes: 0,
-      createdAt: new Date().toISOString(),
-      isLiked: false,
-    };
-    
-    setComments(prev => [newCommentObj, ...prev]);
-    setNewComment('');
-    
-    // Scroll to show the new comment
-    setTimeout(() => {
-      if (commentsSectionRef.current) {
-        const firstComment = commentsSectionRef.current.querySelector('.comment-item');
-        firstComment?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }, 100);
+  const handleAddComment = (content: string) => {
+    console.log('Nouveau commentaire ajouté:', content);
+    // Ici, vous enverriez le commentaire à votre API
   };
 
   const handleLikeComment = (commentId: string) => {
-    setComments(prev => prev.map(comment => {
-      if (comment.id === commentId) {
-        const newLikes = comment.isLiked ? comment.likes - 1 : comment.likes + 1;
-        return { ...comment, likes: newLikes, isLiked: !comment.isLiked };
-      }
-      return comment;
-    }));
-  };
-
-  const toggleComments = () => {
-    setCommentsCollapsed(!commentsCollapsed);
-    if (!commentsCollapsed && commentsSectionRef.current) {
-      setTimeout(() => {
-        commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }
+    console.log('Commentaire liké:', commentId);
+    // Ici, vous enverriez le like à votre API
   };
 
   const getTimeAgo = (dateString: string) => {
@@ -237,7 +183,8 @@ export default function ArticleDetailModal({
               </div>
             </div>
           </div>
-          {/* Close Button */}
+
+              {/* Close Button */}
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
@@ -285,9 +232,7 @@ export default function ArticleDetailModal({
 
             {/* Article Content */}
             <div className="prose dark:prose-invert max-w-none">
-              <div className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                {article.content}
-              </div>
+              <MarkdownPreview content={article.content} />
             </div>
 
             {/* Tags */}
@@ -318,143 +263,13 @@ export default function ArticleDetailModal({
           </div>
 
           {/* Comments Section */}
-          <div 
-            ref={commentsSectionRef}
-            className={`border-t border-gray-200 dark:border-gray-800 transition-all duration-300 ${
-              commentsCollapsed ? 'max-h-0 overflow-hidden opacity-0' : 'max-h-[500px] opacity-100'
-            }`}
-          >
-            {/* Comments Header */}
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Commentaires ({comments.length})
-                </h2>
-                <button
-                  onClick={toggleComments}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <ChevronUp size={20} className="text-gray-500" />
-                </button>
-              </div>
-
-              {/* Add Comment */}
-              <div className="mb-8">
-                <div className="flex gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                    VO
-                  </div>
-                  <div className="flex-1 relative">
-                    <input
-                      ref={commentInputRef}
-                      type="text"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Partagez votre avis sur cet article..."
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendComment();
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={handleSendComment}
-                      disabled={!newComment.trim()}
-                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
-                        newComment.trim()
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <Send size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Comments List */}
-              <div className="space-y-6">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="comment-item group">
-                    <div className="flex gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                        {comment.author.initials}
-                      </div>
-                      <div className="flex-1">
-                        <div className={`bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-all ${
-                          activeCommentId === comment.id ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
-                        }`}>
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white">
-                                {comment.author.name}
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {getTimeAgo(comment.createdAt)}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleLikeComment(comment.id)}
-                                className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                              >
-                                <Heart
-                                  size={14}
-                                  className={comment.isLiked ? 'fill-red-500 text-red-500' : ''}
-                                />
-                                <span>{comment.likes}</span>
-                              </button>
-                              <button
-                                onClick={() => setActiveCommentId(activeCommentId === comment.id ? null : comment.id)}
-                                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <MoreHorizontal size={16} />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                            {comment.content}
-                          </p>
-                        </div>
-                        
-                        {/* Reply Input (appears when comment is active) */}
-                        {activeCommentId === comment.id && (
-                          <div className="mt-3 ml-10">
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Répondre à ce commentaire..."
-                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    setActiveCommentId(null);
-                                  }
-                                }}
-                              />
-                              <button className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                                Répondre
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Load More Comments */}
-              {comments.length > 3 && (
-                <div className="mt-8 text-center">
-                  <button className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
-                    Voir tous les commentaires ({comments.length})
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <CommentsSection
+            articleId={article.id}
+            initialComments={MOCK_COMMENTS}
+            commentsCount={article.stats.comments}
+            onAddComment={handleAddComment}
+            onLikeComment={handleLikeComment}
+          />
         </div>
 
         {/* Footer - Actions */}
@@ -476,14 +291,6 @@ export default function ArticleDetailModal({
               </button>
 
               <button
-                onClick={toggleComments}
-                className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-              >
-                <MessageCircle size={20} />
-                <span className="text-sm font-medium">{article.stats.comments + comments.length}</span>
-              </button>
-
-              <button
                 onClick={handleShare}
                 className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors"
                 title="Partager"
@@ -495,27 +302,6 @@ export default function ArticleDetailModal({
 
             {/* Main Actions */}
             <div className="flex items-center gap-3">
-              <button
-                onClick={toggleComments}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                  commentsCollapsed
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                {commentsCollapsed ? (
-                  <>
-                    <MessageCircle size={16} />
-                    Voir les commentaires
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown size={16} />
-                    Réduire
-                  </>
-                )}
-              </button>
-
               <button
                 onClick={handleBookmark}
                 className={`p-2 rounded-lg transition-all ${
@@ -535,6 +321,7 @@ export default function ArticleDetailModal({
         </div>
       </div>
 
+      {/* Styles */}
       <style jsx global>{`
         @keyframes slideUp {
           from {
@@ -556,27 +343,12 @@ export default function ArticleDetailModal({
           }
         }
 
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
         .animate-slideUp {
           animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
-        }
-
-        .animate-slideIn {
-          animation: slideIn 0.2s ease-out;
         }
 
         .custom-scrollbar::-webkit-scrollbar {
