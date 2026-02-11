@@ -38,20 +38,62 @@ export default function CurrentUserProfilePageWithAPI() {
     }
   };
 
-  const loadUserArticles = async (userId: string) => {
-    try {
-      const response = await fetch(`http://localhost:3000/api/articles/user/${userId}`, {
-        credentials: 'include',
-      });
+  // Dans CurrentUserProfilePageWithAPI.tsx
+
+const loadUserArticles = async (userId: string) => {
+  try {
+    const response = await fetch(`http://localhost:3000/api/articles/user/${userId}`, {
+      credentials: 'include',
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+            
+      // Adapter la structure de données selon votre endpoint
+      let articles = [];
       
-      if (response.ok) {
-        const articles = await response.json();
-        setUserArticles(articles);
+      if (data.articles && Array.isArray(data.articles)) {
+        // Format: { success: true, count: X, articles: [...] }
+        articles = data.articles;
+      } else if (Array.isArray(data)) {
+        // Format: [...]
+        articles = data;
+      } else {
+        console.error('Format de réponse inattendu:', data);
+        return;
       }
-    } catch (error) {
-      console.error('Error loading articles:', error);
+
+      // Transformer les articles pour correspondre au format attendu par ArticleCard
+      const formattedArticles = articles.map((article: any) => ({
+        id: article.id,
+        title: article.title,
+        description: article.description || article.content?.substring(0, 150) + '...' || '',
+        content: article.content,
+        authorId: article.author?.id || userId,
+        authorName: article.author?.name || `${userData?.firstName} ${userData?.lastName}`,
+        category: article.category ? {
+          name: article.category.name,
+          slug: article.category.name?.toLowerCase().replace(/\s+/g, '-') || 'general',
+        } : { name: 'Général', slug: 'general' },
+        tags: article.tags || [],
+        isFeatured: article.isFeatured || false,
+        publishedAt: article.createdAt || article.publishedAt || new Date().toISOString(),
+        status: article.status || 'published',
+        stats: {
+          likes: article.likesCount || article.stats?.likes || 0,
+          comments: article.commentsCount || article.stats?.comments || 0,
+          views: article.viewsCount || article.stats?.views || 0,
+        },
+        isLiked: article.isLiked || false,
+        isBookmarked: article.isBookmarked || false,
+      }));
+      
+      setUserArticles(formattedArticles);
     }
-  };
+  } catch (error) {
+    console.error('Error loading articles:', error);
+  }
+};
 
   // Calculer les statistiques à partir des vraies données
   const userStats = {
