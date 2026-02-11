@@ -25,7 +25,7 @@ export default function UserDropdown() {
 
   // URL de base pour les images via votre API NestJS
   const getProfileImageUrl = (userData: any) => {
-    if (!userData?.id) return "/images/user/owner.jpg";
+    if (!userData?.id) return "/images/user/profile.jpg";
     
     // Si l'utilisateur a une image de profil dans la base de données
     if (userData?.profileImage) {
@@ -34,7 +34,7 @@ export default function UserDropdown() {
     }
     
     // Image par défaut si pas d'image de profil
-    return "/images/user/owner.jpg";
+    return "/images/user/profile.jpg";
   };
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
@@ -88,7 +88,7 @@ export default function UserDropdown() {
             className="object-cover"
             onError={(e) => {
               // Fallback en cas d'erreur de chargement d'image
-              e.currentTarget.src = "/images/user/owner.jpg";
+              e.currentTarget.src = "/images/user/profile.jpg";
             }}
           />
         </span>
@@ -139,7 +139,7 @@ export default function UserDropdown() {
                 unoptimized
                 className="object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = "/images/user/owner.jpg";
+                  e.currentTarget.src = "/images/user/profile.jpg";
                 }}
               />
             </div>

@@ -101,9 +101,7 @@ const getProfileImageUrl = (): string => {
         {/* Avatar avec fonctionnalité d'upload */}
         <div className="flex-shrink-0">
           <div 
-            className="relative group"
-            onMouseEnter={() => setIsHovering(true)}
-            onMouseLeave={() => setIsHovering(false)}
+           
           >
             <div className="relative w-32 h-32 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full overflow-hidden shadow-xl border-4 border-white dark:border-gray-800">
               <Image
@@ -114,7 +112,7 @@ const getProfileImageUrl = (): string => {
                 unoptimized // Important pour les images servies par une API de dev
                 onError={(e) => {
                   // Fallback en cas d'erreur de chargement d'image
-                  e.currentTarget.src = "/images/user/owner.jpg";
+                  e.currentTarget.src = "/images/user/profile.jpg";
                 }}
               />
               
@@ -125,14 +123,6 @@ const getProfileImageUrl = (): string => {
                 </span>
               </div>
               
-              {/* Overlay pour l'effet de survol */}
-              {isCurrentUser && (
-                <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-300 ${
-                  isHovering ? 'opacity-100' : 'opacity-0'
-                }`}>
-                  <Camera className="text-white" size={24} />
-                </div>
-              )}
             </div>
 
             {/* Bouton d'upload (visible uniquement pour l'utilisateur connecté) */}
