@@ -125,6 +125,19 @@ export default function ArticleDetailModal({
 
   if (!isOpen) return null;
 
+  const getProfileImageUrl = (userData: any) => {
+    // if (!userData?.id) return "/images/user/owner.jpg";
+    
+    // Si l'utilisateur a une image de profil dans la base de données
+    if (userData?.avatar) {
+      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+      return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
+    }
+    
+    // Image par défaut si pas d'image de profil
+    // return "/images/user/owner.jpg";
+  };
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       {/* Overlay */}
@@ -142,7 +155,7 @@ export default function ArticleDetailModal({
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
               {article.author.avatar ? (
                 <img
-                  src={article.author.avatar}
+                  src={getProfileImageUrl(article.author)}
                   alt={article.author.name}
                   className="w-full h-full rounded-full object-cover"
                 />

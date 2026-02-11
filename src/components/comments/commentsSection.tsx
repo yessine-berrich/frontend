@@ -235,8 +235,16 @@ export default function CommentsSection({ articleId }: CommentsSectionProps) {
         <div className="flex gap-3">
           {/* Avatar */}
           <div className="flex-shrink-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-              {getInitials()}
+            <div className="w-10 h-10 bg-gradient-to-br  rounded-full flex items-center justify-center text-white font-bold">
+              {/* {getInitials()} */}
+
+              <img 
+                src={getProfileImageUrl(comment.author.id)}
+                alt={comment.author.firstName + ' ' + comment.author.lastName || 'Utilisateur'}
+                className="w-full h-full rounded-full object-cover"
+              />
+
+
             </div>
           </div>
 
@@ -363,6 +371,19 @@ export default function CommentsSection({ articleId }: CommentsSectionProps) {
   const rootComments = comments.filter(comment => !comment.parentId);
   const totalCommentsCount = comments.length;
 
+  const getProfileImageUrl = (id: any) => {
+    // if (!userData?.id) return "/images/user/owner.jpg";
+    
+    // Si l'utilisateur a une image de profil dans la base de données
+    // if (userData?.avatar) {
+      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+      return `http://localhost:3000/api/users/profile-image/${id}?t=${new Date().getTime()}`;
+    // }
+    
+    // Image par défaut si pas d'image de profil
+    // return "/images/user/owner.jpg";
+  };
+
   return (
     <div className="border-t border-gray-200 dark:border-gray-800">
       {/* Header */}
@@ -392,9 +413,14 @@ export default function CommentsSection({ articleId }: CommentsSectionProps) {
           <div className="flex gap-3 mb-6">
             <div className="flex-shrink-0">
               <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
-                {currentUser?.firstName && currentUser?.lastName 
+                {/* {currentUser?.firstName && currentUser?.lastName 
                   ? `${currentUser.firstName[0]}${currentUser.lastName[0]}`.toUpperCase()
-                  : '?'}
+                  : '?'} */}
+                  <img 
+                    src={getProfileImageUrl(currentUserId)}
+                    alt={currentUser?.name || 'Utilisateur'}
+                    className="w-full h-full rounded-full object-cover"
+                  />
               </div>
             </div>
             <div className="flex-1 relative">
