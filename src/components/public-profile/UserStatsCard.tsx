@@ -1,7 +1,6 @@
-// components/user-profile/UserStatsCard.tsx
 'use client';
 
-import { BookOpen, Heart, Award, Star } from 'lucide-react';
+import { BookOpen, Heart, Award, Star, MessageCircle, Eye } from 'lucide-react';
 
 interface UserStatsCardProps {
   stats: {
@@ -13,6 +12,22 @@ interface UserStatsCardProps {
 }
 
 export default function UserStatsCard({ stats }: UserStatsCardProps) {
+  // Calcul des métriques dérivées
+  const engagementRate = stats.totalArticles > 0 
+    ? Math.round((stats.totalLikes + stats.totalComments) / stats.totalArticles * 10) / 10
+    : 0;
+  
+  const avgViews = stats.totalArticles > 0 
+    ? Math.round(stats.totalViews / stats.totalArticles)
+    : 0;
+
+  // Formater les grands nombres
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return num.toString();
+  };
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <h3 className="mb-5 text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -37,21 +52,19 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
           </div>
         </div>
 
-        {/* Engagement */}
-        <div className="rounded-lg bg-purple-50 dark:bg-purple-900/20 p-4">
+        {/* Commentaires reçus */}
+        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                {stats.totalArticles > 0 
-                  ? Math.round((stats.totalLikes + stats.totalComments) / stats.totalArticles)
-                  : 0}
+              <h4 className="text-2xl font-bold text-green-700 dark:text-green-400">
+                {formatNumber(stats.totalComments)}
               </h4>
-              <span className="text-sm text-purple-600 dark:text-purple-300">
-                Engagement
+              <span className="text-sm text-green-600 dark:text-green-300">
+                Commentaires
               </span>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-800">
-              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-800">
+              <MessageCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
@@ -61,7 +74,7 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-2xl font-bold text-red-700 dark:text-red-400">
-                {stats.totalLikes}
+                {formatNumber(stats.totalLikes)}
               </h4>
               <span className="text-sm text-red-600 dark:text-red-300">
                 J'aime
@@ -73,25 +86,62 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
           </div>
         </div>
 
-        {/* Popularité */}
-        <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4">
+        {/* Vues totales */}
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
-                {stats.totalArticles > 0 
-                  ? Math.round(stats.totalViews / stats.totalArticles)
-                  : 0}
+              <h4 className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                {formatNumber(stats.totalViews)}
               </h4>
-              <span className="text-sm text-yellow-600 dark:text-yellow-300">
-                Vues/article
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Vues
               </span>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-800">
-              <Star className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+              <Eye className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Métriques avancées - Affichées uniquement si l'utilisateur a des articles */}
+      {stats.totalArticles > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Taux d'engagement */}
+            <div className="text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Engagement / article
+              </p>
+              <div className="flex items-center justify-center gap-1">
+                <Award className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <span className="text-lg font-semibold text-purple-700 dark:text-purple-400">
+                  {engagementRate}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                ({formatNumber(stats.totalLikes + stats.totalComments)} total)
+              </p>
+            </div>
+
+            {/* Moyenne de vues */}
+            <div className="text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Vues / article
+              </p>
+              <div className="flex items-center justify-center gap-1">
+                <Star className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-lg font-semibold text-yellow-700 dark:text-yellow-400">
+                  {formatNumber(avgViews)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Moyenne par article
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

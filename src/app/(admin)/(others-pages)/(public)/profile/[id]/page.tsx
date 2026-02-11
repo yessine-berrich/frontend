@@ -1,69 +1,53 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import ArticleCard from '@/components/article/ArticleCard';
-import { FileText, BookOpen, Heart, MessageCircle, Eye, Calendar, MapPin, Mail, Globe, Users, Award, Star, ChevronLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import UserProfileHeader from '@/components/public-profile/UserProfileHeader';
+import { FileText, ChevronLeft, Heart, Eye } from 'lucide-react';
 import UserAboutCard from '@/components/public-profile/UserAboutCard';
 import UserStatsCard from '@/components/public-profile/UserStatsCard';
+import UserProfileHeader from '@/components/public-profile/UserProfileHeader';
 
-// Données statiques d'exemple pour les utilisateurs
-const STATIC_USERS = [
+// Interface pour typer les données utilisateur depuis le backend
+interface User {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  bio: string | null;
+  country: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  facebook: string | null;
+  twitter: string | null;
+  linkedin: string | null;
+  instagram: string | null;
+  profileImage: string | null;
+  avatar?: string | null; // Pour supporter les deux noms de champ
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-  {
-    id: '2',
-    firstName: 'Pierre',
-    lastName: 'Bernard',
-    email: 'pierre.bernard@company.com',
-    bio: 'Manager RH spécialisé dans le développement des compétences et la gestion des talents.',
-    role: 'Manager RH',
-    department: 'Ressources Humaines',
-    profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face',
-    location: 'Marseille, France',
-    website: null,
-    joinDate: '2023-02-10',
-    badges: ['HR Specialist', 'Team Builder'],
-    expertise: ['Recrutement', 'Formation', 'Gestion des talents']
-  }
-];
-
-// Articles statiques d'exemple - avec des IDs d'auteur correspondants
-const STATIC_ARTICLES = [
-
-  {
-    id: '2',
-    title: 'Les bases de Tailwind CSS pour les débutants',
-    description: 'Un guide étape par étape pour maîtriser Tailwind CSS dans vos projets.',
-    content: 'Tailwind CSS est un framework CSS utility-first qui permet de créer des designs rapidement...',
-    authorId: '2', // Correspond à Jean Dupont
-    authorName: 'Jean Dupont',
-    category: { name: 'Design', slug: 'design' },
-    tags: ['#Tailwind', '#CSS', '#UI'],
-    isFeatured: false,
-    publishedAt: '2024-01-25T11:30:00Z',
-    status: 'published',
-    stats: { likes: 37, comments: 7, views: 1200 },
-    isLiked: true,
-    isBookmarked: true
-  },
-  {
-    id: '3',
-    title: 'Nouvelles politiques RH : Télétravail et flexibilité',
-    description: 'Découvrez les nouvelles modalités de télétravail et les options de flexibilité disponibles.',
-    authorId: '2', // Correspond à Pierre Bernard
-    authorName: 'Pierre Bernard',
-    category: { name: 'RH', slug: 'rh' },
-    tags: ['#RH', '#Télétravail'],
-    isFeatured: false,
-    publishedAt: '2024-02-03T14:30:00Z',
-    status: 'published',
-    stats: { likes: 89, comments: 12, views: 2540 },
-    isLiked: true,
-    isBookmarked: true
-  }
-];
+// Interface pour les articles
+interface Article {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  authorId: number;
+  authorName: string;
+  category: { name: string; slug: string };
+  tags: string[];
+  publishedAt: string;
+  status: string;
+  stats: { likes: number; comments: number; views: number };
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+}
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -71,37 +55,86 @@ export default function PublicProfilePage() {
   const userId = params.id as string;
   
   const [activeTab, setActiveTab] = useState<'articles' | 'about'>('articles');
-  const [user, setUser] = useState<any>(null);
-  const [userArticles, setUserArticles] = useState<any[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [userArticles, setUserArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+  // Fonction pour obtenir l'URL de l'image de profil
+  const getProfileImageUrl = (userData: User) => {
+    // Vérifier si l'utilisateur a une image de profil
+    if (userData?.avatar || userData?.profileImage) {
+      // On ajoute un timestamp pour forcer le navigateur à ignorer le cache après un update
+      return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${imageTimestamp}`;
+    }
+    // Retourner l'image par défaut si pas d'image
+    return "/images/user/owner.jpg";
+  };
 
   useEffect(() => {
-    const loadData = () => {
+    const fetchUserData = async () => {
       setLoading(true);
+      setError(null);
       
-      setTimeout(() => {
-        const foundUser = STATIC_USERS.find(u => u.id === userId);
+      try {
+        // Récupérer les informations de l'utilisateur
+        const userResponse = await fetch(`${API_URL}/api/users/${userId}`);
         
-        if (foundUser) {
-          setUser(foundUser);
-          const articles = STATIC_ARTICLES.filter(article => article.authorId === userId);
-          setUserArticles(articles);
+        if (!userResponse.ok) {
+          if (userResponse.status === 404) {
+            setError('Utilisateur non trouvé');
+          } else {
+            throw new Error('Erreur lors du chargement du profil');
+          }
+          setLoading(false);
+          return;
         }
         
+        const userData = await userResponse.json();
+        
+        // Uniformiser les données utilisateur
+        const normalizedUser = {
+          ...userData,
+          avatar: userData.avatar || userData.profileImage // Support des deux champs
+        };
+        
+        setUser(normalizedUser);
+        
+        // Récupérer les articles de l'utilisateur
+        const articlesResponse = await fetch(`${API_URL}/api/articles?authorId=${userId}&status=published`);
+        
+        if (articlesResponse.ok) {
+          const articlesData = await articlesResponse.json();
+          setUserArticles(articlesData);
+        }
+        
+      } catch (err) {
+        console.error('Erreur:', err);
+        setError('Impossible de charger les données du profil');
+      } finally {
         setLoading(false);
-      }, 300);
+      }
     };
 
-    loadData();
-  }, [userId]);
+    if (userId) {
+      fetchUserData();
+    }
+  }, [userId, API_URL]);
+
+  // Rafraîchir l'image si nécessaire (par exemple après un update)
+  const refreshProfileImage = () => {
+    setImageTimestamp(Date.now());
+  };
 
   // Calcul des statistiques
   const userStats = {
     totalArticles: userArticles.length,
-    totalLikes: userArticles.reduce((sum, article) => sum + article.stats.likes, 0),
-    totalComments: userArticles.reduce((sum, article) => sum + article.stats.comments, 0),
-    totalViews: userArticles.reduce((sum, article) => sum + article.stats.views, 0),
+    totalLikes: userArticles.reduce((sum, article) => sum + (article.stats?.likes || 0), 0),
+    totalComments: userArticles.reduce((sum, article) => sum + (article.stats?.comments || 0), 0),
+    totalViews: userArticles.reduce((sum, article) => sum + (article.stats?.views || 0), 0),
   };
 
   const handleLike = (id: string) => console.log('Like:', id);
@@ -116,6 +149,103 @@ export default function PublicProfilePage() {
     });
   };
 
+    const transformArticleForCard = (article: Article) => {
+    // Compter les commentaires (vous devrez récupérer cela de votre API)
+    const getCommentsCount = async (articleId: number) => {
+      try {
+        const response = await fetch(`/api/comments/article/${articleId}/stats`);
+        if (response.ok) {
+          const data = await response.json();
+          return data.total || 0;
+        }
+      } catch (err) {
+        console.error('Erreur lors du chargement des commentaires:', err);
+      }
+      return 0;
+    };
+
+    return {
+      id: article.id.toString(),
+      title: article.title,
+      description: article.content.substring(0, 150) + '...',
+      content: article.content,
+      author: {
+        id: article.author.id,
+        name: `${article.author.firstName} ${article.author.lastName}`,
+        initials: `${article.author.firstName.charAt(0)}${article.author.lastName.charAt(0)}`,
+        department: article.author.role,
+        avatar: article.author.profileImage || undefined,
+      },
+      category: {
+        name: article.category.name,
+        slug: article.category.name.toLowerCase().replace(/\s+/g, '-'),
+      },
+      tags: article.tags.map(tag => tag.name),
+      isFeatured: false,
+      publishedAt: article.createdAt,
+      updatedAt: article.updatedAt,
+      status: article.status as 'draft' | 'published' | 'pending',
+      stats: {
+        likes: 0, // À récupérer de l'API
+        comments: 0, // À récupérer de l'API
+        views: article.viewsCount,
+      },
+      isLiked: false,
+      isBookmarked: false,
+    };
+  };
+
+  // Formater l'utilisateur pour UserProfileHeader
+  const formatUserForHeader = (user: User) => {
+    return {
+      id: user.id.toString(),
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profileImage: getProfileImageUrl(user), // Utilisation de la fonction pour l'image
+      role: user.role,
+      department: user.role,
+      email: user.email,
+    };
+  };
+
+  // Formater l'utilisateur pour UserAboutCard
+const formatUserForAbout = (user: User) => {
+  const location = [user.city, user.state, user.country]
+    .filter(Boolean)
+    .join(', ') || 'Localisation non spécifiée';
+
+  // Extraire le nom d'utilisateur des URLs si nécessaire
+  const extractUsername = (url: string | null) => {
+    if (!url) return null;
+    // Si c'est déjà une URL complète, on la garde
+    if (url.startsWith('http')) return url;
+    // Sinon c'est probablement juste le nom d'utilisateur
+    return url;
+  };
+
+  return {
+    id: user.id.toString(),
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    bio: user.bio || '',
+    role: user.role,
+    department: user.role,
+    profileImage: getProfileImageUrl(user),
+    location,
+    website: user.website || null, // Si vous avez ce champ
+    joinDate: user.createdAt,
+    badges: [],
+    expertise: [],
+    socialLinks: {
+      facebook: extractUsername(user.facebook),
+      twitter: extractUsername(user.twitter),
+      linkedin: extractUsername(user.linkedin),
+      instagram: extractUsername(user.instagram)
+    }
+  };
+};
+
   // Affichage du chargement
   if (loading) {
     return (
@@ -128,6 +258,22 @@ export default function PublicProfilePage() {
             <ChevronLeft size={20} />
             Retour
           </button>
+          
+          {/* Skeleton loader pour le header */}
+          <div className="mb-8 animate-pulse">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <div className="w-32 h-32 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+              <div className="flex-1 space-y-4">
+                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-64"></div>
+                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-48"></div>
+                <div className="flex gap-4">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                </div>
+              </div>
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-6">
@@ -154,12 +300,11 @@ export default function PublicProfilePage() {
     );
   }
 
-  // Affichage si utilisateur non trouvé
-  if (!user) {
+  // Affichage si erreur ou utilisateur non trouvé
+  if (error || !user) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="mx-auto max-w-7xl px-4 py-8">
-          {/* Bouton retour */}
           <button
             onClick={() => router.back()}
             className="mb-6 flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 transition-colors"
@@ -167,20 +312,23 @@ export default function PublicProfilePage() {
             <ChevronLeft size={20} />
             Retour
           </button>
+          
           <div className="text-center max-w-md mx-auto">
-            
-            <div className="flex gap-3 justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm">
+              <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">😕</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Profil non trouvé
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                {error || "L'utilisateur que vous recherchez n'existe pas ou a été supprimé."}
+              </p>
               <button
                 onClick={() => router.push('/')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Retour à l'accueil
-              </button>
-              <button
-                onClick={() => router.push(`/profile/2`)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Tester un profil aléatoire
               </button>
             </div>
           </div>
@@ -202,13 +350,16 @@ export default function PublicProfilePage() {
         </button>
 
         {/* En-tête du profil public */}
-        <UserProfileHeader user={user} stats={userStats} />
+        <UserProfileHeader 
+          user={formatUserForHeader(user)} 
+          stats={userStats} 
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* ===== Colonne de gauche : Informations profil ===== */}
           <div className="space-y-6">
-            <UserAboutCard user={user} />
+            <UserAboutCard user={formatUserForAbout(user)} />
             <UserStatsCard stats={userStats} />
           </div>
 
@@ -236,11 +387,11 @@ export default function PublicProfilePage() {
                       : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
                   }`}
                 >
-                  Expertise
+                  À propos
                 </button>
               </div>
 
-              {/* Liste des articles OU section Expertise */}
+              {/* Liste des articles OU section À propos */}
               <div className="space-y-6">
                 {activeTab === 'articles' ? (
                   userArticles.length > 0 ? (
@@ -248,31 +399,23 @@ export default function PublicProfilePage() {
                       {userArticles.map((article) => (
                         <ArticleCard
                           key={article.id}
-                          article={{
-                            ...article,
-                            author: {
-                              id: user.id,
-                              name: `${user.firstName} ${user.lastName}`,
-                              initials: (user.firstName?.[0] || '') + (user.lastName?.[0] || ''),
-                              department: user.department || '',
-                              avatar: user.profileImage,
-                            },
-                          }}
+                          article={transformArticleForCard(article)}
+                          // article={{
+                          //   ...article,
+                          //   author: {
+                          //     id: user.id.toString(),
+                          //     name: `${user.firstName} ${user.lastName}`,
+                          //     initials: (user.firstName?.[0] || '') + (user.lastName?.[0] || ''),
+                          //     department: user.role || '',
+                          //     avatar: getProfileImageUrl(user), // Même URL d'image pour l'auteur
+                          //   },
+                          // }}
                           onLike={handleLike}
                           onBookmark={handleBookmark}
                           onShare={handleShare}
                           showActions={false}
                         />
                       ))}
-
-                      {/* Message si peu d'articles */}
-                      {userArticles.length <= 3 && (
-                        <div className="text-center py-6">
-                          <p className="text-gray-500 dark:text-gray-400">
-                            {user.firstName} a publié {userArticles.length} article{userArticles.length > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      )}
                     </>
                   ) : (
                     <div className="py-12 text-center">
@@ -288,36 +431,23 @@ export default function PublicProfilePage() {
                     </div>
                   )
                 ) : (
-                  // Section Expertise
+                  // Section À propos
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
-                        Compétences et expertise
+                        Bio
                       </h3>
-                      {user?.expertise && user.expertise.length > 0 ? (
-                        <div className="flex flex-wrap gap-2 mb-6">
-                          {user.expertise.map((skill: string, index: number) => (
-                            <span
-                              key={index}
-                              className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-400 dark:text-gray-500 italic">
-                          Aucune expertise spécifiée
-                        </p>
-                      )}
+                      <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+                        {user.bio || "Aucune biographie n'a été renseignée."}
+                      </p>
                     </div>
 
-                    {/* Contributions récentes */}
-                    <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-                      <h4 className="font-semibold text-gray-800 dark:text-white/90 mb-4">
-                        Dernières contributions
-                      </h4>
-                      {userArticles.slice(0, 3).length > 0 ? (
+                    {/* Derniers articles */}
+                    {userArticles.length > 0 && (
+                      <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                        <h4 className="font-semibold text-gray-800 dark:text-white/90 mb-4">
+                          Dernières publications
+                        </h4>
                         <div className="space-y-3">
                           {userArticles.slice(0, 3).map((article) => (
                             <div
@@ -332,20 +462,16 @@ export default function PublicProfilePage() {
                                 <span>{formatDate(article.publishedAt)}</span>
                                 <span className="flex items-center gap-2">
                                   <Heart size={12} />
-                                  <span>{article.stats.likes}</span>
+                                  <span>{article.stats?.likes || 0}</span>
                                   <Eye size={12} className="ml-2" />
-                                  <span>{article.stats.views}</span>
+                                  <span>{article.stats?.views || 0}</span>
                                 </span>
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-gray-400 dark:text-gray-500 italic">
-                          Aucune contribution récente
-                        </p>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
