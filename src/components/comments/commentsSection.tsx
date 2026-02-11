@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   MessageCircle, 
   Send, 
-  ChevronUp, 
   ChevronDown, 
   Heart, 
   Trash2,
   Reply
 } from 'lucide-react';
+import { fetchCurrentUser } from '../../../services/auth.service';
 
 interface CommentAuthor {
   id: number;
@@ -25,55 +25,40 @@ interface Comment {
   isEdited?: boolean;
   isLiked?: boolean;
   author: CommentAuthor;
-  parentId?: number;
+  parentId?: number | null;
   replies?: Comment[];
   createdAt: string;
 }
 
 interface CommentsSectionProps {
   articleId: number;
-  currentUserId?: number;
 }
 
-export default function CommentsSection({
-  articleId,
-}: CommentsSectionProps) {
+export default function CommentsSection({ articleId }: CommentsSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentsCollapsed, setCommentsCollapsed] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userLoading, setUserLoading] = useState(false);
-  const [currentUserId, setCurrentUser] = useState<number | null>(null);
-
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  
+  // Charger l'utilisateur courant
   useEffect(() => {
-    fetchComments();
-    fetchCurrentUser();
-  }, [articleId]);
-
-   const fetchCurrentUser = async () => {
-    try {
-      setUserLoading(true);
-      const response = await fetch('http://localhost:3000/api/users/current-user', {
-        credentials: 'include' // Important pour envoyer les cookies
-      });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData.id);
-      } else {
+    fetchCurrentUser()
+      .then((userData) => {
+        setCurrentUser(userData);
+        setCurrentUserId(userData.id);
+      })
+      .catch(() => {
         setCurrentUser(null);
-      }
-    } catch (err) {
-      console.error('Erreur fetch user:', err);
-      setCurrentUser(null);
-    } finally {
-      setUserLoading(false);
-    }
-  };
+        setCurrentUserId(null);
+      });
+  }, []);
 
-  const fetchComments = async () => {
+  // Charger les commentaires
+  const fetchComments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:3000/api/comments/article/${articleId}`);
@@ -82,21 +67,27 @@ export default function CommentsSection({
       setComments(data);
     } catch (err) {
       console.error(err);
+      setComments([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [articleId]);
 
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
+
+  // Envoyer un commentaire
   const handleSendComment = async () => {
     if (!newComment.trim() || !currentUserId) return;
     
+    const token = localStorage.getItem('auth_token');
     try {
-      setLoading(true);
-      
       const response = await fetch('http://localhost:3000/api/comments', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           articleId,
@@ -108,23 +99,23 @@ export default function CommentsSection({
       
       setNewComment('');
       await fetchComments();
-      
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Répondre à un commentaire
   const handleReply = async (commentId: number) => {
     if (!replyContent.trim() || !currentUserId) return;
-
+    
+    const token = localStorage.getItem('auth_token');
     try {
-      setLoading(true);
-      
       const response = await fetch('http://localhost:3000/api/comments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
         body: JSON.stringify({
           articleId,
           content: replyContent.trim(),
@@ -137,166 +128,190 @@ export default function CommentsSection({
       setReplyContent('');
       setActiveReplyId(null);
       await fetchComments();
-      
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Supprimer un commentaire
   const handleDelete = async (commentId: number) => {
     if (!confirm('Supprimer ce commentaire ?')) return;
-
+    
+    const token = localStorage.getItem('auth_token');
     try {
-      setLoading(true);
-      
       const response = await fetch(`http://localhost:3000/api/comments/${commentId}`, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (!response.ok) throw new Error('Erreur lors de la suppression');
-      
       await fetchComments();
-      
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Liker/Unliker un commentaire
   const handleLike = async (commentId: number) => {
+    if (!currentUserId) {
+      alert('Connectez-vous pour liker');
+      return;
+    }
+
+    const token = localStorage.getItem('auth_token');
     try {
       const response = await fetch(`http://localhost:3000/api/comments/${commentId}/like`, {
         method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}` 
+        },
       });
       
       if (!response.ok) throw new Error('Erreur lors du like');
-      await fetchComments();
+      
+      // Mise à jour OPTIMISTE
+      const result = await response.json();
+      
+      setComments(prevComments => 
+        updateCommentLikes(prevComments, commentId, result.likes, result.isLiked)
+      );
       
     } catch (err) {
       console.error(err);
     }
   };
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
-
-    if (diffInDays > 0) return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
-    if (diffInHours > 0) return `il y a ${diffInHours} heure${diffInHours > 1 ? 's' : ''}`;
-    return 'il y a quelques minutes';
-  };
-
-  const buildCommentTree = (comments: Comment[]) => {
-    const commentMap = new Map<number, Comment>();
-    const rootComments: Comment[] = [];
-
-    comments.forEach(comment => {
-      commentMap.set(comment.id, { ...comment, replies: [] });
-    });
-
-    comments.forEach(comment => {
-      const commentNode = commentMap.get(comment.id);
-      if (!commentNode) return;
-
-      if (comment.parentId) {
-        const parent = commentMap.get(comment.parentId);
-        if (parent) {
-          parent.replies?.push(commentNode);
-        }
-      } else {
-        rootComments.push(commentNode);
+  // Fonction utilitaire pour mettre à jour les likes récursivement
+  const updateCommentLikes = (comments: Comment[], commentId: number, likes: number, isLiked: boolean): Comment[] => {
+    return comments.map(comment => {
+      if (comment.id === commentId) {
+        return { ...comment, likes, isLiked };
       }
+      if (comment.replies) {
+        return {
+          ...comment,
+          replies: updateCommentLikes(comment.replies, commentId, likes, isLiked)
+        };
+      }
+      return comment;
     });
-
-    return rootComments;
   };
 
-  const commentTree = buildCommentTree(comments);
-  const totalCommentsCount = comments.length;
+  // Format date
+  const getTimeAgo = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInHours / 24);
 
-  const toggleComments = () => {
-    setCommentsCollapsed(!commentsCollapsed);
+      if (diffInDays > 0) return `il y a ${diffInDays} j`;
+      if (diffInHours > 0) return `il y a ${diffInHours} h`;
+      if (diffInMinutes > 0) return `il y a ${diffInMinutes} min`;
+      return 'à l\'instant';
+    } catch {
+      return '';
+    }
   };
 
-  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
-    const isOwner = currentUserId === comment.author.id;
+  // Composant de commentaire individuel
+  const CommentItem = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
+    const isOwner = currentUserId === comment.author?.id;
+    const [showReplies, setShowReplies] = useState(true);
     
+    if (!comment.author) return null;
+
+    const getInitials = () => {
+      const firstName = comment.author.firstName || '';
+      const lastName = comment.author.lastName || '';
+      return firstName && lastName ? `${firstName[0]}${lastName[0]}`.toUpperCase() : '?';
+    };
+
     return (
-      <div className={`${level > 0 ? 'ml-8 mt-3' : 'mt-4'}`}>
+      <div className={`${level > 0 ? 'ml-12' : ''} mb-4`}>
+        {/* Commentaire principal - STYLE FACEBOOK */}
         <div className="flex gap-3">
-          <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-            {comment.author.firstName[0]}{comment.author.lastName[0]}
+          {/* Avatar */}
+          <div className="flex-shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+              {getInitials()}
+            </div>
           </div>
-          <div className="flex-1">
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
-                    {comment.author.firstName} {comment.author.lastName}
-                  </h4>
-                  <span className="text-sm text-gray-500">
-                    {getTimeAgo(comment.createdAt)}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleLike(comment.id)}
-                  disabled={!currentUserId}
-                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 disabled:opacity-50"
-                >
-                  <Heart size={16} className={comment.isLiked ? 'fill-red-500 text-red-500' : ''} />
-                  <span>{comment.likes}</span>
-                </button>
+
+          {/* Contenu */}
+          <div className="flex-1 min-w-0">
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 py-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-sm">
+                  {comment.author.firstName} {comment.author.lastName}
+                </span>
+                {comment.isEdited && (
+                  <span className="text-xs text-gray-500">(modifié)</span>
+                )}
               </div>
-              <p className="text-gray-700 dark:text-gray-300">
+              <p className="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap break-words">
                 {comment.content}
               </p>
             </div>
-            
-            <div className="flex items-center gap-4 mt-2 ml-2">
+
+            {/* Actions - Style Facebook */}
+            <div className="flex items-center gap-4 mt-1 ml-1">
+              <button
+                onClick={() => handleLike(comment.id)}
+                disabled={!currentUserId}
+                className={`flex items-center gap-1 text-xs font-semibold ${
+                  comment.isLiked 
+                    ? 'text-blue-600' 
+                    : 'text-gray-500 hover:text-blue-600'
+                } disabled:opacity-50 transition-colors`}
+              >
+                <Heart size={14} className={comment.isLiked ? 'fill-blue-600' : ''} />
+                <span>{comment.likes > 0 ? comment.likes : 'J\'aime'}</span>
+              </button>
+
               {currentUserId && (
                 <button
                   onClick={() => {
-                    if (activeReplyId === comment.id) {
-                      setActiveReplyId(null);
-                    } else {
-                      setActiveReplyId(comment.id);
-                      setReplyContent('');
-                    }
+                    setActiveReplyId(activeReplyId === comment.id ? null : comment.id);
+                    setReplyContent('');
                   }}
-                  className="text-sm text-gray-600 hover:text-blue-600 flex items-center gap-1"
+                  className="text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
                 >
-                  <Reply size={14} />
                   Répondre
                 </button>
               )}
+
+              <span className="text-xs text-gray-500">
+                {getTimeAgo(comment.createdAt)}
+              </span>
+
               {isOwner && (
                 <button
                   onClick={() => handleDelete(comment.id)}
-                  className="text-sm text-gray-600 hover:text-red-600 flex items-center gap-1"
+                  className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors"
                 >
-                  <Trash2 size={14} />
                   Supprimer
                 </button>
               )}
             </div>
 
+            {/* Input de réponse */}
             {activeReplyId === comment.id && currentUserId && (
-              <div className="mt-3">
-                <div className="flex gap-2">
+              <div className="mt-3 flex gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
+                  {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
+                </div>
+                <div className="flex-1 relative">
                   <input
                     type="text"
                     value={replyContent}
                     onChange={(e) => setReplyContent(e.target.value)}
                     placeholder={`Répondre à ${comment.author.firstName}...`}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-4 py-2 pr-20 border border-gray-300 dark:border-gray-700 rounded-full text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-800"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && replyContent.trim()) {
                         handleReply(comment.id);
                       }
                     }}
@@ -305,122 +320,124 @@ export default function CommentsSection({
                   <button
                     onClick={() => handleReply(comment.id)}
                     disabled={!replyContent.trim()}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Envoyer
+                    Répondre
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Voir les réponses */}
+            {comment.replies && comment.replies.length > 0 && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setShowReplies(!showReplies)}
+                  className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  <ChevronDown size={14} className={`transform transition-transform ${showReplies ? '' : '-rotate-90'}`} />
+                  {showReplies ? 'Masquer' : 'Voir'} {comment.replies.length} réponse{comment.replies.length > 1 ? 's' : ''}
+                </button>
+
+                {/* Réponses */}
+                {showReplies && (
+                  <div className="mt-3 space-y-3">
+                    {comment.replies.map((reply) => (
+                      <CommentItem 
+                        key={reply.id} 
+                        comment={reply} 
+                        level={level + 1} 
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
-
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="mt-3">
-            {comment.replies.map((reply) => (
-              <CommentComponent 
-                key={reply.id} 
-                comment={reply} 
-                level={level + 1} 
-              />
-            ))}
-          </div>
-        )}
       </div>
     );
   };
 
+  // Filtrer seulement les commentaires racines
+  const rootComments = comments.filter(comment => !comment.parentId);
+  const totalCommentsCount = comments.length;
+
   return (
     <div className="border-t border-gray-200 dark:border-gray-800">
+      {/* Header */}
       <div className="p-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={toggleComments}
-            className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
+            onClick={() => setCommentsCollapsed(!commentsCollapsed)}
+            className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 transition-colors"
           >
             <MessageCircle size={20} />
-            <span className="text-sm font-medium">{totalCommentsCount} commentaires</span>
+            <span className="font-semibold">{totalCommentsCount} commentaire{totalCommentsCount > 1 ? 's' : ''}</span>
           </button>
 
           <button
-            onClick={toggleComments}
-            className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-              commentsCollapsed
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
+            onClick={() => setCommentsCollapsed(!commentsCollapsed)}
+            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           >
-            {commentsCollapsed ? (
-              <>
-                <MessageCircle size={16} />
-                Voir les commentaires
-              </>
-            ) : (
-              <>
-                <ChevronDown size={16} />
-                Réduire
-              </>
-            )}
+            <ChevronDown size={20} className={`transform transition-transform ${commentsCollapsed ? '' : 'rotate-180'}`} />
           </button>
         </div>
       </div>
 
+      {/* Section commentaires */}
       {!commentsCollapsed && (
-        <div className="p-6 border-t border-gray-200 dark:border-gray-800">
-          <div className="mb-8">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                {currentUserId ? 'VO' : '?'}
+        <div className="px-4 pb-6">
+          {/* Input nouveau commentaire - Style Facebook */}
+          <div className="flex gap-3 mb-6">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                {currentUser?.firstName && currentUser?.lastName 
+                  ? `${currentUser.firstName[0]}${currentUser.lastName[0]}`.toUpperCase()
+                  : '?'}
               </div>
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder={currentUserId ? "Partagez votre avis..." : "Connectez-vous pour commenter"}
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && currentUserId) {
-                      e.preventDefault();
-                      handleSendComment();
-                    }
-                  }}
-                  disabled={loading || !currentUserId}
-                />
-                <button
-                  onClick={handleSendComment}
-                  disabled={!newComment.trim() || loading || !currentUserId}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg ${
-                    newComment.trim() && !loading && currentUserId
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <Send size={18} />
-                  )}
-                </button>
-              </div>
+            </div>
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder={currentUserId ? "Écrire un commentaire..." : "Connectez-vous pour commenter"}
+                className="w-full px-4 py-2 pr-20 border border-gray-300 dark:border-gray-700 rounded-full text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-800"
+                disabled={loading || !currentUserId}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newComment.trim() && currentUserId) {
+                    e.preventDefault();
+                    handleSendComment();
+                  }
+                }}
+              />
+              <button
+                onClick={handleSendComment}
+                disabled={!newComment.trim() || loading || !currentUserId}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? '...' : 'Publier'}
+              </button>
             </div>
           </div>
 
+          {/* Liste des commentaires */}
           {loading ? (
             <div className="text-center py-8">
-              <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="text-gray-500 dark:text-gray-400">Chargement des commentaires...</p>
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+              <p className="text-sm text-gray-500 mt-2">Chargement...</p>
             </div>
-          ) : commentTree.length > 0 ? (
+          ) : rootComments.length > 0 ? (
             <div className="space-y-4">
-              {commentTree.map((comment) => (
-                <CommentComponent key={comment.id} comment={comment} />
+              {rootComments.map((comment) => (
+                <CommentItem key={comment.id} comment={comment} />
               ))}
             </div>
           ) : (
             <div className="text-center py-8">
-              <MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">
+              <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-500 text-sm">
                 Soyez le premier à commenter !
               </p>
             </div>

@@ -50,7 +50,7 @@ export default function ArticlesPage() {
   useEffect(() => {
     // Récupérer les informations de l'utilisateur connecté
     const userId = localStorage.getItem('userId');
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     
     if (userId) setCurrentUserId(parseInt(userId));
     if (token) setUserToken(token);
@@ -77,7 +77,7 @@ export default function ArticlesPage() {
 
   const handleLike = async (id: string) => {
     try {
-      const response = await fetch(`/api/articles/${id}/like`, {
+      const response = await fetch(`http://localhost:3000/api/articles/${id}/like`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${userToken}`,
@@ -101,7 +101,7 @@ export default function ArticlesPage() {
 
   const handleBookmark = async (id: string) => {
     try {
-      const response = await fetch(`/api/articles/${id}/bookmark`, {
+      const response = await fetch(`http://localhost:3000/api/articles/${id}/bookmark`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${userToken}`,
@@ -279,8 +279,6 @@ export default function ArticlesPage() {
                   <ArticleCard
                     key={article.id}
                     article={transformArticleForCard(article)}
-                    currentUserId={currentUserId}
-                    userToken={userToken}
                     onLike={handleLike}
                     onBookmark={handleBookmark}
                     onShare={handleShare}
