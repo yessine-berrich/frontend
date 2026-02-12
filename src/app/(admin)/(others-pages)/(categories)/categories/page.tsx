@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import CreateCategoryModal from '@/components/modals/CreateCategoryModal';
 import CategoriesManager from '@/components/categories/CategoriesManager';
+import { categoryService, Category as ApiCategory } from '../../../../../../services/category.service';
+import { articleService } from '../../../../../../services/article.service';
 
 interface Category {
   id: string;
@@ -11,105 +13,80 @@ interface Category {
   articleCount: number;
 }
 
-const initialCategories: Category[] = [
-  {
-    id: '1',
-    name: 'Frontend',
-    description: 'Technologies et frameworks côté client : React, Vue, Angular, CSS, HTML',
-    articleCount: 45,
-  },
-  {
-    id: '2',
-    name: 'Backend',
-    description: 'Développement serveur : Node.js, Python, Java, bases de données',
-    articleCount: 38,
-  },
-  {
-    id: '3',
-    name: 'DevOps',
-    description: 'Infrastructure, CI/CD, conteneurisation, orchestration',
-    articleCount: 24,
-  },
-  {
-    id: '4',
-    name: 'Base de données',
-    description: 'SQL, NoSQL, optimisation, modélisation de données',
-    articleCount: 18,
-  },
-  {
-    id: '5',
-    name: 'Sécurité',
-    description: 'Cybersécurité, authentification, bonnes pratiques',
-    articleCount: 15,
-  },
-  {
-    id: '6',
-    name: 'Architecture',
-    description: 'Patterns, microservices, design system, scalabilité',
-    articleCount: 12,
-  },
-  {
-    id: '7',
-    name: 'IA & Machine Learning',
-    description: 'Intelligence artificielle, apprentissage automatique, LLM',
-    articleCount: 21,
-  },
-  {
-    id: '8',
-    name: 'Mobile',
-    description: 'Développement iOS, Android, React Native, Flutter',
-    articleCount: 9,
-  },
-];
-
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Charger les catégories depuis localStorage au montage
+  // Charger les catégories depuis l'API
   useEffect(() => {
-    const savedCategories = localStorage.getItem('knowledgehub-categories');
-    if (savedCategories) {
-      try {
-        setCategories(JSON.parse(savedCategories));
-      } catch (error) {
-        console.error('Erreur lors du chargement des catégories:', error);
-      }
-    }
+    loadCategories();
   }, []);
 
-  // Sauvegarder les catégories dans localStorage quand elles changent
-  useEffect(() => {
-    localStorage.setItem('knowledgehub-categories', JSON.stringify(categories));
-  }, [categories]);
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Récupérer les catégories
+      const apiCategories = await categoryService.findAll();
+      
+      // Récupérer tous les articles pour compter par catégorie
+      let articlesByCategory: Record<number, number> = {};
+      try {
+        const articles = await articleService.findAll();
+        articlesByCategory = articles.reduce((acc, article) => {
+          if (article.category?.id) {
+            acc[article.category.id] = (acc[article.category.id] || 0) + 1;
+          }
+          return acc;
+        }, {} as Record<number, number>);
+      } catch (err) {
+        console.error('Erreur chargement articles:', err);
+      }
 
-  const handleCreateCategory = (categoryData: {
-    name: string;
-    description: string;
-  }) => {
-    if (editingCategory) {
-      // Update existing category
-      setCategories(prev =>
-        prev.map(cat =>
-          cat.id === editingCategory.id
-            ? { ...cat, ...categoryData }
-            : cat
-        )
-      );
-      setEditingCategory(null);
-    } else {
-      // Create new category
-      const newCategory: Category = {
-        id: Date.now().toString(),
-        ...categoryData,
-        articleCount: 0,
-      };
-      setCategories(prev => [...prev, newCategory]);
+      // Transformer pour le frontend
+      const frontendCategories: Category[] = apiCategories.map(cat => ({
+        id: cat.id.toString(),
+        name: cat.name,
+        description: cat.description || '',
+        articleCount: articlesByCategory[cat.id] || 0,
+      }));
+
+      setCategories(frontendCategories);
+    } catch (err) {
+      console.error('Erreur chargement catégories:', err);
+      setError('Impossible de charger les catégories');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteCategory = (id: string) => {
+  const handleCreateCategory = async (categoryData: {
+    name: string;
+    description: string;
+  }) => {
+    try {
+      if (editingCategory) {
+        // Mise à jour
+        await categoryService.update(Number(editingCategory.id), categoryData);
+      } else {
+        // Création
+        await categoryService.create(categoryData);
+      }
+      
+      // Recharger les catégories
+      await loadCategories();
+      handleCloseModal();
+    } catch (err) {
+      console.error('Erreur lors de la sauvegarde:', err);
+      alert('Erreur lors de la sauvegarde de la catégorie');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string | number) => {
     const category = categories.find(cat => cat.id === id);
     if (!category) return;
 
@@ -118,7 +95,13 @@ export default function CategoriesPage() {
       : `Êtes-vous sûr de vouloir supprimer "${category.name}" ?`;
 
     if (window.confirm(message)) {
-      setCategories(prev => prev.filter(cat => cat.id !== id));
+      try {
+        await categoryService.delete(Number(id));
+        await loadCategories();
+      } catch (err) {
+        console.error('Erreur lors de la suppression:', err);
+        alert('Erreur lors de la suppression de la catégorie');
+      }
     }
   };
 
@@ -127,16 +110,42 @@ export default function CategoriesPage() {
     setIsCreateModalOpen(true);
   };
 
-  const handleViewArticles = (categoryId: string) => {
-    const category = categories.find(cat => cat.id === categoryId);
-    console.log('Voir les articles de la catégorie:', category?.name);
-    // TODO: Navigate to articles page with filter
+  const handleViewArticles = (categoryId: string | number) => {
+    // Navigation vers la page des articles avec filtre
+    window.location.href = `/articles?category=${categoryId}`;
   };
 
   const handleCloseModal = () => {
     setIsCreateModalOpen(false);
     setEditingCategory(null);
   };
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-gray-300 dark:border-gray-600 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Chargement des catégories...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={loadCategories}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -166,7 +175,11 @@ export default function CategoriesPage() {
         isOpen={isCreateModalOpen}
         onClose={handleCloseModal}
         onCreateCategory={handleCreateCategory}
-        editCategory={editingCategory}
+        editCategory={editingCategory ? {
+          id: editingCategory.id,
+          name: editingCategory.name,
+          description: editingCategory.description
+        } : null}
       />
 
       <style jsx global>{`

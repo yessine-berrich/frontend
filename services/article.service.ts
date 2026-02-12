@@ -1,192 +1,275 @@
-// // services/article.service.ts
+export interface Article {
+  id: number;
+  title: string;
+  content: string;
+  status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  category: {
+    id: number;
+    name: string;
+  };
+  author: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    profileImage?: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+  viewsCount: number;
+  likes?: any[];
+  bookmarks?: any[];
+  comments?: any[];
+}
 
-// import { 
-//   Article, 
-//   CreateArticleDto, 
-//   UpdateArticleDto, 
-//   ArticleFilters, 
-//   PaginatedResponse,
-//   Category,
-//   Tag,
-//   MediaDto
-// } from '@/types/article.types';
+export interface CreateArticleDto {
+  title: string;
+  content: string;
+  categoryId: number;
+  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+}
 
-// const API_BASE_URL = 'http://localhost:3000';
+export interface UpdateArticleDto {
+  title?: string;
+  content?: string;
+  categoryId?: number;
+  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+}
 
-// class ArticleService {
-//   private getAuthHeaders(): HeadersInit {
-//     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-//     return {
-//       'Content-Type': 'application/json',
-//       ...(token && { Authorization: `Bearer ${token}` }),
-//     };
-//   }
+export interface SearchArticlesDto {
+  q: string;
+  limit?: number;
+  minSimilarity?: number;
+  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+}
 
-//   async createArticle(data: CreateArticleDto): Promise<Article> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles`, {
-//       method: 'POST',
-//       headers: this.getAuthHeaders(),
-//       body: JSON.stringify(data),
-//     });
+export interface SearchResponse {
+  success: boolean;
+  query: string;
+  params: {
+    limit: number;
+    minSimilarity: number;
+    status: string;
+  };
+  found: number;
+  results: Article[];
+}
 
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la création de l\'article');
-//     }
+export interface LikeResponse {
+  success: boolean;
+  message: string;
+  article: {
+    id: number;
+    title: string;
+    likesCount: number;
+    isLiked: boolean;
+  };
+}
 
-//     return response.json();
-//   }
+export interface BookmarkResponse {
+  success: boolean;
+  message: string;
+  article: {
+    id: number;
+    title: string;
+    bookmarksCount: number;
+    isBookmarked: boolean;
+  };
+}
 
-//   async updateArticle(id: number, data: UpdateArticleDto): Promise<Article> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles/${id}`, {
-//       method: 'PATCH',
-//       headers: this.getAuthHeaders(),
-//       body: JSON.stringify(data),
-//     });
+export interface UserArticlesResponse {
+  success: boolean;
+  count: number;
+  articles: Array<{
+    id: number;
+    title: string;
+    description: string;
+    author: {
+      id: number;
+      name: string;
+      avatar?: string;
+    } | null;
+    category: {
+      id: number;
+      name: string;
+    } | null;
+    createdAt: Date;
+    likesCount: number;
+    bookmarksCount: number;
+  }>;
+}
 
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la mise à jour de l\'article');
-//     }
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
-//     return response.json();
-//   }
-
-//   async deleteArticle(id: number): Promise<void> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles/${id}`, {
-//       method: 'DELETE',
-//       headers: this.getAuthHeaders(),
-//     });
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la suppression de l\'article');
-//     }
-//   }
-
-//   async getArticle(id: number): Promise<Article> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles/${id}`, {
-//       headers: this.getAuthHeaders(),
-//     });
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la récupération de l\'article');
-//     }
-
-//     return response.json();
-//   }
-
-//   async getArticles(filters?: ArticleFilters): Promise<PaginatedResponse<Article>> {
-//     const queryParams = new URLSearchParams();
+class ArticleService {
+  private getAuthHeaders(): HeadersInit {
+    if (typeof window === 'undefined') return {};
     
-//     if (filters) {
-//       Object.entries(filters).forEach(([key, value]) => {
-//         if (value !== undefined && value !== null) {
-//           if (Array.isArray(value)) {
-//             value.forEach(v => queryParams.append(key, v.toString()));
-//           } else {
-//             queryParams.append(key, value.toString());
-//           }
-//         }
-//       });
-//     }
-
-//     const response = await fetch(
-//       `${API_BASE_URL}/api/articles?${queryParams.toString()}`,
-//       {
-//         headers: this.getAuthHeaders(),
-//       }
-//     );
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la récupération des articles');
-//     }
-
-//     return response.json();
-//   }
-
-//   async getCategories(): Promise<Category[]> {
-//     const response = await fetch(`${API_BASE_URL}/api/categories`, {
-//       headers: this.getAuthHeaders(),
-//     });
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la récupération des catégories');
-//     }
-
-//     return response.json();
-//   }
-
-//   async getTags(): Promise<Tag[]> {
-//     const response = await fetch(`${API_BASE_URL}/api/tags`, {
-//       headers: this.getAuthHeaders(),
-//     });
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de la récupération des tags');
-//     }
-
-//     return response.json();
-//   }
-
-//   async uploadFile(file: File): Promise<MediaDto> {
-//     const formData = new FormData();
-//     formData.append('file', file);
-
-//     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-//     const response = await fetch(`${API_BASE_URL}/api/upload`, {
-//       method: 'POST',
-//       headers: {
-//         ...(token && { Authorization: `Bearer ${token}` }),
-//       },
-//       body: formData,
-//     });
-
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de l\'upload du fichier');
-//     }
-
-//     const data = await response.json();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
     
-//     return {
-//       url: data.url,
-//       filename: file.name,
-//       mimetype: file.type,
-//       size: file.size,
-//     };
-//   }
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+  }
 
-//   async likeArticle(id: number): Promise<Article> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles/${id}/like`, {
-//       method: 'POST',
-//       headers: this.getAuthHeaders(),
-//     });
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      // Gestion des erreurs HTTP
+      if (response.status === 401) {
+        // Token expiré ou invalide
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token');
+          window.location.href = '/login';
+        }
+      }
+      
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
+    }
+    
+    return response.json() as Promise<T>;
+  }
 
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors du like de l\'article');
-//     }
+  async findAll(): Promise<Article[]> {
+    const response = await fetch(`${API_URL}/articles`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<Article[]>(response);
+  }
 
-//     return response.json();
-//   }
+  async findByCategory(categoryId: number): Promise<Article[]> {
+    const articles = await this.findAll();
+    return articles.filter(article => article.category?.id === categoryId);
+  }
 
-//   async incrementViews(id: number): Promise<void> {
-//     const response = await fetch(`${API_BASE_URL}/api/articles/${id}/view`, {
-//       method: 'POST',
-//       headers: this.getAuthHeaders(),
-//     });
+  async findOne(id: number): Promise<Article> {
+    const response = await fetch(`${API_URL}/articles/${id}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<Article>(response);
+  }
 
-//     if (!response.ok) {
-//       const error = await response.json();
-//       throw new Error(error.message || 'Erreur lors de l\'incrémentation des vues');
-//     }
-//   }
-// }
+  async create(data: CreateArticleDto): Promise<Article> {
+    const response = await fetch(`${API_URL}/articles`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    
+    return this.handleResponse<Article>(response);
+  }
 
-// export const articleService = new ArticleService();
-// export default articleService;
+  async update(id: number, data: UpdateArticleDto): Promise<Article> {
+    const response = await fetch(`${API_URL}/articles/${id}`, {
+      method: 'PATCH',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    
+    return this.handleResponse<Article>(response);
+  }
+
+  async delete(id: number): Promise<void> {
+    const response = await fetch(`${API_URL}/articles/${id}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<void>(response);
+  }
+
+  async incrementView(id: number): Promise<void> {
+    const response = await fetch(`${API_URL}/articles/${id}/view`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
+    
+    return this.handleResponse<void>(response);
+  }
+
+  async toggleLike(id: number): Promise<LikeResponse> {
+    const response = await fetch(`${API_URL}/articles/${id}/like`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
+    
+    return this.handleResponse<LikeResponse>(response);
+  }
+
+  async toggleBookmark(id: number): Promise<BookmarkResponse> {
+    const response = await fetch(`${API_URL}/articles/${id}/bookmark`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
+    
+    return this.handleResponse<BookmarkResponse>(response);
+  }
+
+  async getUserLikedArticles(): Promise<UserArticlesResponse> {
+    const response = await fetch(`${API_URL}/articles/user/liked`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<UserArticlesResponse>(response);
+  }
+
+  async getUserBookmarkedArticles(): Promise<UserArticlesResponse> {
+    const response = await fetch(`${API_URL}/articles/user/bookmarked`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<UserArticlesResponse>(response);
+  }
+
+  async getArticlesByUserId(userId: number): Promise<any[]> {
+    const response = await fetch(`${API_URL}/articles/user/${userId}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    return this.handleResponse<any[]>(response);
+  }
+
+  // Recherche sémantique
+  async semanticSearch(data: SearchArticlesDto): Promise<SearchResponse> {
+    const response = await fetch(`${API_URL}/articles/search`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        q: data.q,
+        limit: data.limit || 10,
+        minSimilarity: data.minSimilarity || 0.72,
+        status: data.status || 'PUBLISHED'
+      }),
+    });
+    
+    return this.handleResponse<SearchResponse>(response);
+  }
+}
+
+export const articleService = new ArticleService();
