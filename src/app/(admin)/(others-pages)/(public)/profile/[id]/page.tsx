@@ -25,28 +25,48 @@ interface User {
   linkedin: string | null;
   instagram: string | null;
   profileImage: string | null;
-  avatar?: string | null; // Pour supporter les deux noms de champ
+  avatar?: string | null;
   role: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-// Interface pour les articles
+// Interface pour les articles (format backend)
 interface Article {
-  id: string;
+  id: number;
   title: string;
-  description: string;
   content: string;
-  authorId: number;
-  authorName: string;
-  category: { name: string; slug: string };
-  tags: string[];
-  publishedAt: string;
+  description?: string;
   status: string;
-  stats: { likes: number; comments: number; views: number };
+  viewsCount: number;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    profileImage?: string;
+    role: string;
+  };
+  category: {
+    id: number;
+    name: string;
+  };
+  tags?: Array<{ id: number; name: string }> | string[]; // Les tags peuvent être sous différentes formes
+  likes?: any[];
+  bookmarks?: any[];
+  comments?: any[];
+  likesCount?: number;
+  commentsCount?: number;
+  bookmarksCount?: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  stats?: {
+    likes: number;
+    comments: number;
+    views: number;
+  };
 }
 
 export default function PublicProfilePage() {
@@ -56,21 +76,23 @@ export default function PublicProfilePage() {
   
   const [activeTab, setActiveTab] = useState<'articles' | 'about'>('articles');
   const [user, setUser] = useState<User | null>(null);
-  const [userArticles, setUserArticles] = useState<Article[]>([]);
+  const [userArticles, setUserArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageTimestamp, setImageTimestamp] = useState(Date.now());
+  const [userToken, setUserToken] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-  // Fonction pour obtenir l'URL de l'image de profil
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    setUserToken(token);
+  }, []);
+
   const getProfileImageUrl = (userData: User) => {
-    // Vérifier si l'utilisateur a une image de profil
     if (userData?.avatar || userData?.profileImage) {
-      // On ajoute un timestamp pour forcer le navigateur à ignorer le cache après un update
       return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${imageTimestamp}`;
     }
-    // Retourner l'image par défaut si pas d'image
     return "/images/user/owner.jpg";
   };
 
@@ -95,20 +117,83 @@ export default function PublicProfilePage() {
         
         const userData = await userResponse.json();
         
-        // Uniformiser les données utilisateur
         const normalizedUser = {
           ...userData,
-          avatar: userData.avatar || userData.profileImage // Support des deux champs
+          avatar: userData.avatar || userData.profileImage
         };
         
         setUser(normalizedUser);
         
-        // Récupérer les articles de l'utilisateur
-        const articlesResponse = await fetch(`${API_URL}/api/articles?authorId=${userId}&status=published`);
+        // Récupérer les articles de l'utilisateur avec le token si disponible
+        const headers: HeadersInit = {};
+        if (userToken) {
+          headers['Authorization'] = `Bearer ${userToken}`;
+        }
+        
+        const articlesResponse = await fetch(`${API_URL}/api/articles/user/${userId}`, {
+          headers
+        });
         
         if (articlesResponse.ok) {
           const articlesData = await articlesResponse.json();
-          setUserArticles(articlesData);
+          console.log('📊 Articles reçus:', articlesData);
+          
+          // ✅ TRANSFORMER LES ARTICLES POUR CORRESPONDRE AU FORMAT ATTENDU PAR ARTICLECARD
+          const formattedArticles = articlesData.map((article: any) => {
+            // Extraire les infos de l'auteur
+            const authorName = article.author 
+              ? `${article.author.firstName || ''} ${article.author.lastName || ''}`.trim() 
+              : 'Utilisateur';
+            
+            const initials = authorName
+              .split(' ')
+              .map((n: string) => n[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2) || 'U';
+
+            // Formater les tags (peuvent être un tableau d'objets ou de strings)
+            let tags: string[] = [];
+            if (Array.isArray(article.tags)) {
+              tags = article.tags.map((tag: any) => {
+                if (typeof tag === 'string') return tag;
+                if (tag && typeof tag === 'object' && tag.name) return tag.name;
+                return String(tag);
+              });
+            }
+
+            return {
+              id: String(article.id),
+              title: article.title,
+              description: article.description || article.content?.substring(0, 180) + '...' || '',
+              content: article.content || '',
+              author: {
+                id: article.author?.id,
+                name: authorName,
+                initials: initials,
+                department: article.author?.role || 'Membre',
+                avatar: article.author?.profileImage || null
+              },
+              category: {
+                name: article.category?.name || 'Non classé',
+                slug: article.category?.name?.toLowerCase().replace(/\s+/g, '-') || 'non-classe'
+              },
+              tags: tags,
+              publishedAt: article.publishedAt || article.createdAt,
+              updatedAt: article.updatedAt,
+              status: article.status || 'published',
+              stats: {
+                likes: article.likesCount || article.likes?.length || 0,
+                comments: article.commentsCount || article.comments?.length || 0,
+                views: article.viewsCount || 0,
+              },
+              isLiked: article.isLiked || false,
+              isBookmarked: article.isBookmarked || false,
+              isFeatured: false,
+            };
+          });
+          
+          setUserArticles(formattedArticles);
         }
         
       } catch (err) {
@@ -122,14 +207,13 @@ export default function PublicProfilePage() {
     if (userId) {
       fetchUserData();
     }
-  }, [userId, API_URL]);
+  }, [userId, API_URL, userToken]);
 
-  // Rafraîchir l'image si nécessaire (par exemple après un update)
   const refreshProfileImage = () => {
     setImageTimestamp(Date.now());
   };
 
-  // Calcul des statistiques
+  // Calcul des statistiques avec les articles formatés
   const userStats = {
     totalArticles: userArticles.length,
     totalLikes: userArticles.reduce((sum, article) => sum + (article.stats?.likes || 0), 0),
@@ -137,9 +221,83 @@ export default function PublicProfilePage() {
     totalViews: userArticles.reduce((sum, article) => sum + (article.stats?.views || 0), 0),
   };
 
-  const handleLike = (id: string) => console.log('Like:', id);
-  const handleBookmark = (id: string) => console.log('Bookmark:', id);
-  const handleShare = (id: string) => console.log('Share:', id);
+  const handleLike = async (id: string) => {
+    if (!userToken) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/articles/${id}/like`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        setUserArticles(prev => prev.map(article => {
+          if (article.id === id) {
+            return {
+              ...article,
+              isLiked: result.article.isLiked,
+              stats: {
+                ...article.stats,
+                likes: result.article.likesCount
+              }
+            };
+          }
+          return article;
+        }));
+      }
+    } catch (err) {
+      console.error('❌ Erreur like:', err);
+    }
+  };
+
+  const handleBookmark = async (id: string) => {
+    if (!userToken) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/articles/${id}/bookmark`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        setUserArticles(prev => prev.map(article => {
+          if (article.id === id) {
+            return {
+              ...article,
+              isBookmarked: result.article.isBookmarked
+            };
+          }
+          return article;
+        }));
+      }
+    } catch (err) {
+      console.error('❌ Erreur bookmark:', err);
+    }
+  };
+
+  const handleShare = (id: string) => {
+    const article = userArticles.find(a => a.id === id);
+    if (!article) return;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: article.title,
+        text: article.description,
+        url: `${window.location.origin}/articles/${id}`,
+      });
+    } else {
+      navigator.clipboard.writeText(`${window.location.origin}/articles/${id}`);
+      alert('Lien copié dans le presse-papier !');
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -149,104 +307,52 @@ export default function PublicProfilePage() {
     });
   };
 
-    const transformArticleForCard = (article: Article) => {
-    // Compter les commentaires (vous devrez récupérer cela de votre API)
-    const getCommentsCount = async (articleId: number) => {
-      try {
-        const response = await fetch(`/api/comments/article/${articleId}/stats`);
-        if (response.ok) {
-          const data = await response.json();
-          return data.total || 0;
-        }
-      } catch (err) {
-        console.error('Erreur lors du chargement des commentaires:', err);
-      }
-      return 0;
-    };
-
-    return {
-      id: article.id.toString(),
-      title: article.title,
-      description: article.content.substring(0, 150) + '...',
-      content: article.content,
-      author: {
-        id: article.author.id,
-        name: `${article.author.firstName} ${article.author.lastName}`,
-        initials: `${article.author.firstName.charAt(0)}${article.author.lastName.charAt(0)}`,
-        department: article.author.role,
-        avatar: article.author.profileImage || undefined,
-      },
-      category: {
-        name: article.category.name,
-        slug: article.category.name.toLowerCase().replace(/\s+/g, '-'),
-      },
-      tags: article.tags.map(tag => tag.name),
-      isFeatured: false,
-      publishedAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      status: article.status as 'draft' | 'published' | 'pending',
-      stats: {
-        likes: 0, // À récupérer de l'API
-        comments: 0, // À récupérer de l'API
-        views: article.viewsCount,
-      },
-      isLiked: false,
-      isBookmarked: false,
-    };
-  };
-
-  // Formater l'utilisateur pour UserProfileHeader
   const formatUserForHeader = (user: User) => {
     return {
       id: user.id.toString(),
       firstName: user.firstName,
       lastName: user.lastName,
-      profileImage: getProfileImageUrl(user), // Utilisation de la fonction pour l'image
+      profileImage: getProfileImageUrl(user),
       role: user.role,
       department: user.role,
       email: user.email,
     };
   };
 
-  // Formater l'utilisateur pour UserAboutCard
-const formatUserForAbout = (user: User) => {
-  const location = [user.city, user.state, user.country]
-    .filter(Boolean)
-    .join(', ') || 'Localisation non spécifiée';
+  const formatUserForAbout = (user: User) => {
+    const location = [user.city, user.state, user.country]
+      .filter(Boolean)
+      .join(', ') || 'Localisation non spécifiée';
 
-  // Extraire le nom d'utilisateur des URLs si nécessaire
-  const extractUsername = (url: string | null) => {
-    if (!url) return null;
-    // Si c'est déjà une URL complète, on la garde
-    if (url.startsWith('http')) return url;
-    // Sinon c'est probablement juste le nom d'utilisateur
-    return url;
+    const extractUsername = (url: string | null) => {
+      if (!url) return null;
+      if (url.startsWith('http')) return url;
+      return url;
+    };
+
+    return {
+      id: user.id.toString(),
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      bio: user.bio || '',
+      role: user.role,
+      department: user.role,
+      profileImage: getProfileImageUrl(user),
+      location,
+      website: null,
+      joinDate: user.createdAt,
+      badges: [],
+      expertise: [],
+      socialLinks: {
+        facebook: extractUsername(user.facebook),
+        twitter: extractUsername(user.twitter),
+        linkedin: extractUsername(user.linkedin),
+        instagram: extractUsername(user.instagram)
+      }
+    };
   };
 
-  return {
-    id: user.id.toString(),
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    bio: user.bio || '',
-    role: user.role,
-    department: user.role,
-    profileImage: getProfileImageUrl(user),
-    location,
-    website: user.website || null, // Si vous avez ce champ
-    joinDate: user.createdAt,
-    badges: [],
-    expertise: [],
-    socialLinks: {
-      facebook: extractUsername(user.facebook),
-      twitter: extractUsername(user.twitter),
-      linkedin: extractUsername(user.linkedin),
-      instagram: extractUsername(user.instagram)
-    }
-  };
-};
-
-  // Affichage du chargement
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -259,7 +365,7 @@ const formatUserForAbout = (user: User) => {
             Retour
           </button>
           
-          {/* Skeleton loader pour le header */}
+          {/* Skeleton loader */}
           <div className="mb-8 animate-pulse">
             <div className="flex flex-col md:flex-row gap-6 items-start">
               <div className="w-32 h-32 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
@@ -274,33 +380,11 @@ const formatUserForAbout = (user: User) => {
               </div>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] animate-pulse">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-5"></div>
-                <div className="space-y-4">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                </div>
-              </div>
-            </div>
-            <div className="lg:col-span-2">
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] animate-pulse">
-                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
-                <div className="space-y-4">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
   }
 
-  // Affichage si erreur ou utilisateur non trouvé
   if (error || !user) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -399,21 +483,12 @@ const formatUserForAbout = (user: User) => {
                       {userArticles.map((article) => (
                         <ArticleCard
                           key={article.id}
-                          article={transformArticleForCard(article)}
-                          // article={{
-                          //   ...article,
-                          //   author: {
-                          //     id: user.id.toString(),
-                          //     name: `${user.firstName} ${user.lastName}`,
-                          //     initials: (user.firstName?.[0] || '') + (user.lastName?.[0] || ''),
-                          //     department: user.role || '',
-                          //     avatar: getProfileImageUrl(user), // Même URL d'image pour l'auteur
-                          //   },
-                          // }}
+                          // ✅ UTILISER LES ARTICLES FORMATÉS
+                          article={article}
                           onLike={handleLike}
                           onBookmark={handleBookmark}
                           onShare={handleShare}
-                          showActions={false}
+                          showActions={!!userToken}
                         />
                       ))}
                     </>

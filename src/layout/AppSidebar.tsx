@@ -17,7 +17,7 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
-import { Home, Calendar, UserCircle, Tag, Folder, User2, Users, ChartArea } from 'lucide-react';
+import { Home, Calendar, UserCircle, Tag, Folder, User2, Users, ChartArea, LucideBookHeart, GitCommitVerticalIcon, MessageCircle, Bookmark } from 'lucide-react';
 import SidebarWidget from "./SidebarWidget";
 import StatisticsChart from "@/components/ecommerce/StatisticsChart";
 
@@ -39,7 +39,21 @@ const navItems: NavItem[] = [
   name: "Home",
   path: "/home",
 },
-
+{
+  icon: <LucideBookHeart className="w-5 h-5" />,
+  name: "like",
+  path: "/liked",
+},
+{
+  icon: <MessageCircle className="w-5 h-5" />,
+  name: "commented",
+  path: "/commented",
+},
+{
+  icon: <Bookmark className="w-5 h-5" />,
+  name: "bookmarked",
+  path: "/bookmarked",
+},
   {
     icon: <UserCircleIcon />,
     name: "User Profile",

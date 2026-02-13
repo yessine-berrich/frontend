@@ -6,49 +6,17 @@ import TrendingArticles from '@/components/article/Trendingarticles';
 import TopContributors from '@/components/users/Topcontributors';
 import { FileText, Loader2 } from 'lucide-react';
 
-interface Author {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  profileImage?: string | null;
-  role: string;
-}
-
-interface Category {
-  id: number;
-  name: string;
-  description?: string;
-}
-
-interface Tag {
-  id: number;
-  name: string;
-}
-
-interface Article {
-  id: number;
-  title: string;
-  content: string;
-  status: string;
-  viewsCount: number;
-  author: Author;
-  category: Category;
-  tags: Tag[];
-  media: any[];
-  createdAt: string;
-  updatedAt: string;
-}
+// ✅ Plus besoin de ces interfaces complexes
+// Le backend renvoie déjà les données au bon format
 
 export default function ArticlesPage() {
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | undefined>();
   const [userToken, setUserToken] = useState<string | undefined>();
 
   useEffect(() => {
-    // Récupérer les informations de l'utilisateur connecté
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('auth_token');
     
@@ -66,6 +34,9 @@ export default function ArticlesPage() {
         throw new Error(`Erreur ${response.status}: ${response.statusText}`);
       }
       const data = await response.json();
+      
+      // ✅ Le backend renvoie maintenant les données au bon format !
+      console.log('Articles reçus:', data);
       setArticles(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
@@ -85,11 +56,18 @@ export default function ArticlesPage() {
       });
       
       if (response.ok) {
-        console.log('Article liké:', id);
+        const result = await response.json();
         // Mettre à jour localement
         setArticles(prev => prev.map(article => {
           if (article.id.toString() === id) {
-            return { ...article, isLiked: true };
+            return { 
+              ...article, 
+              isLiked: result.article.isLiked,
+              stats: {
+                ...article.stats,
+                likes: result.article.likesCount
+              }
+            };
           }
           return article;
         }));
@@ -109,7 +87,17 @@ export default function ArticlesPage() {
       });
       
       if (response.ok) {
-        console.log('Article bookmarké:', id);
+        const result = await response.json();
+        setArticles(prev => prev.map(article => {
+          if (article.id.toString() === id) {
+            return { 
+              ...article, 
+              isBookmarked: result.article.isBookmarked,
+              bookmarksCount: result.article.bookmarksCount
+            };
+          }
+          return article;
+        }));
       }
     } catch (err) {
       console.error('Erreur lors du bookmark:', err);
@@ -123,11 +111,10 @@ export default function ArticlesPage() {
     if (navigator.share) {
       navigator.share({
         title: article.title,
-        text: article.content.substring(0, 100),
+        text: article.description,
         url: `${window.location.origin}/articles/${id}`,
       });
     } else {
-      // Fallback: copier dans le presse-papier
       navigator.clipboard.writeText(`${window.location.origin}/articles/${id}`);
       alert('Lien copié dans le presse-papier !');
     }
@@ -142,7 +129,7 @@ export default function ArticlesPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
 
     try {
-      const response = await fetch(`/api/articles/${id}`, {
+      const response = await fetch(`http://localhost:3000/api/articles/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${userToken}`,
@@ -162,52 +149,8 @@ export default function ArticlesPage() {
     }
   };
 
-  // Transformer les données de l'API pour correspondre au composant ArticleCard
-  const transformArticleForCard = (article: Article) => {
-    // Compter les commentaires (vous devrez récupérer cela de votre API)
-    const getCommentsCount = async (articleId: number) => {
-      try {
-        const response = await fetch(`/api/comments/article/${articleId}/stats`);
-        if (response.ok) {
-          const data = await response.json();
-          return data.total || 0;
-        }
-      } catch (err) {
-        console.error('Erreur lors du chargement des commentaires:', err);
-      }
-      return 0;
-    };
-
-    return {
-      id: article.id.toString(),
-      title: article.title,
-      description: article.content.substring(0, 150) + '...',
-      content: article.content,
-      author: {
-        id: article.author.id,
-        name: `${article.author.firstName} ${article.author.lastName}`,
-        initials: `${article.author.firstName.charAt(0)}${article.author.lastName.charAt(0)}`,
-        department: article.author.role,
-        avatar: article.author.profileImage || undefined,
-      },
-      category: {
-        name: article.category.name,
-        slug: article.category.name.toLowerCase().replace(/\s+/g, '-'),
-      },
-      tags: article.tags.map(tag => tag.name),
-      isFeatured: false,
-      publishedAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      status: article.status as 'draft' | 'published' | 'pending',
-      stats: {
-        likes: 0, // À récupérer de l'API
-        comments: 0, // À récupérer de l'API
-        views: article.viewsCount,
-      },
-      isLiked: false,
-      isBookmarked: false,
-    };
-  };
+  // ✅ SUPPRIMER COMPLÈTEMENT la fonction transformArticleForCard
+  // Elle n'est plus nécessaire !
 
   if (loading) {
     return (
@@ -274,11 +217,11 @@ export default function ArticlesPage() {
               </div>
             ) : (
               <>
-                {/* Articles */}
+                {/* ✅ Utiliser directement les articles du backend */}
                 {articles.map((article) => (
                   <ArticleCard
                     key={article.id}
-                    article={transformArticleForCard(article)}
+                    article={article}
                     onLike={handleLike}
                     onBookmark={handleBookmark}
                     onShare={handleShare}
@@ -290,7 +233,7 @@ export default function ArticlesPage() {
               </>
             )}
 
-            {/* Bouton Charger plus */}
+            {/* Bouton Actualiser */}
             {articles.length > 0 && (
               <div className="text-center">
                 <button 
