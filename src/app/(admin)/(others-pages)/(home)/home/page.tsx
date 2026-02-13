@@ -4,11 +4,9 @@ import { useState, useEffect } from 'react';
 import ArticleCard from '@/components/article/ArticleCard';
 import TrendingArticles from '@/components/article/Trendingarticles';
 import TopContributors from '@/components/users/Topcontributors';
-import { FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2, Search, SlidersHorizontal, X, Folder, Tag, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import CreateArticleModal from '@/components/modals/CreateArticleModal';
-
-// ✅ Plus besoin de ces interfaces complexes
-// Le backend renvoie déjà les données au bon format
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<any[]>([]);
@@ -19,6 +17,17 @@ export default function ArticlesPage() {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<string | undefined>();
 
+  // États pour les filtres
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'popular'>('recent');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [tags, setTags] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  const itemsPerPage = 6;
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -33,46 +42,80 @@ export default function ArticlesPage() {
   const fetchArticles = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3000/api/articles');
+      
+      // ✅ Récupérer le token à chaque appel
+      const token = localStorage.getItem('auth_token');
+      
+      // ✅ CONSTRUIRE LES HEADERS AVEC LE TOKEN
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('🔑 Token envoyé:', token.substring(0, 20) + '...');
+      } else {
+        console.log('🔑 Aucun token trouvé');
+      }
+
+      const response = await fetch('http://localhost:3000/api/articles', {
+        headers // ✅ IMPORTANT: passer les headers
+      });
+      
       if (!response.ok) {
         throw new Error(`Erreur ${response.status}: ${response.statusText}`);
       }
+      
       const data = await response.json();
       
-      // ✅ Le backend renvoie maintenant les données au bon format !
-      console.log('Articles reçus:', data);
+      console.log('✅ Articles reçus avec token:', token ? 'oui' : 'non');
+      if (data.length > 0) {
+        console.log('📊 Premier article:', {
+          id: data[0].id,
+          title: data[0].title,
+          isLiked: data[0].isLiked,
+          isBookmarked: data[0].isBookmarked,
+          likesCount: data[0].stats?.likes
+        });
+      }
+      
       setArticles(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
-      console.error('Erreur:', err);
+      console.error('❌ Erreur:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // NOUVELLE FONCTION: Gérer la fermeture du modal
   const handleCloseModal = () => {
     setCreateModalOpen(false);
     setEditingArticleId(undefined);
   };
 
-  // NOUVELLE FONCTION: Rafraîchir les articles après succès
   const handleArticleSuccess = () => {
-    fetchArticles(); // Recharger la liste des articles
+    fetchArticles();
   };
 
   const handleLike = async (id: string) => {
     try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        alert('Veuillez vous connecter pour liker un article');
+        return;
+      }
+
       const response = await fetch(`http://localhost:3000/api/articles/${id}/like`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       
       if (response.ok) {
         const result = await response.json();
-        // Mettre à jour localement
+        console.log('✅ Like response:', result);
+        
         setArticles(prev => prev.map(article => {
           if (article.id.toString() === id) {
             return { 
@@ -88,34 +131,41 @@ export default function ArticlesPage() {
         }));
       }
     } catch (err) {
-      console.error('Erreur lors du like:', err);
+      console.error('❌ Erreur lors du like:', err);
     }
   };
 
   const handleBookmark = async (id: string) => {
     try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        alert('Veuillez vous connecter pour sauvegarder un article');
+        return;
+      }
+
       const response = await fetch(`http://localhost:3000/api/articles/${id}/bookmark`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       
       if (response.ok) {
         const result = await response.json();
+        console.log('✅ Bookmark response:', result);
+        
         setArticles(prev => prev.map(article => {
           if (article.id.toString() === id) {
             return { 
               ...article, 
-              isBookmarked: result.article.isBookmarked,
-              bookmarksCount: result.article.bookmarksCount
+              isBookmarked: result.article.isBookmarked
             };
           }
           return article;
         }));
       }
     } catch (err) {
-      console.error('Erreur lors du bookmark:', err);
+      console.error('❌ Erreur lors du bookmark:', err);
     }
   };
 
@@ -136,7 +186,6 @@ export default function ArticlesPage() {
   };
 
   const handleEdit = (id: string) => {
-    console.log('Edit:', id);
     setEditingArticleId(id);
     setCreateModalOpen(true);
   };
@@ -145,10 +194,11 @@ export default function ArticlesPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
 
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`http://localhost:3000/api/articles/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -160,13 +210,10 @@ export default function ArticlesPage() {
         throw new Error(errorData.message || 'Erreur lors de la suppression');
       }
     } catch (err) {
-      console.error('Erreur:', err);
+      console.error('❌ Erreur:', err);
       alert(err instanceof Error ? err.message : 'Erreur lors de la suppression');
     }
   };
-
-  // ✅ SUPPRIMER COMPLÈTEMENT la fonction transformArticleForCard
-  // Elle n'est plus nécessaire !
 
   if (loading) {
     return (
@@ -208,6 +255,11 @@ export default function ArticlesPage() {
           <p className="text-gray-600 dark:text-gray-400">
             Découvrez les derniers articles partagés par nos collaborateurs
           </p>
+          {!userToken && (
+            <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+              ⚠️ Connectez-vous pour liker et sauvegarder des articles
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -224,7 +276,7 @@ export default function ArticlesPage() {
                 </p>
                 {currentUserId && (
                   <button
-                    onClick={() => window.location.href = '/articles/create'}
+                    onClick={() => setCreateModalOpen(true)}
                     className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Créer un article
@@ -233,7 +285,6 @@ export default function ArticlesPage() {
               </div>
             ) : (
               <>
-                {/* ✅ Utiliser directement les articles du backend */}
                 {articles.map((article) => (
                   <ArticleCard
                     key={article.id}
@@ -241,9 +292,7 @@ export default function ArticlesPage() {
                     onLike={handleLike}
                     onBookmark={handleBookmark}
                     onShare={handleShare}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    showActions
+                    showActions={!!userToken}
                   />
                 ))}
               </>
@@ -260,12 +309,13 @@ export default function ArticlesPage() {
                 </button>
               </div>
             )}
+            
             <CreateArticleModal
-        isOpen={isCreateModalOpen}
-        onClose={handleCloseModal}
-        onSuccess={handleArticleSuccess}
-        articleId={editingArticleId}
-      />
+              isOpen={isCreateModalOpen}
+              onClose={handleCloseModal}
+              onSuccess={handleArticleSuccess}
+              articleId={editingArticleId}
+            />
           </div>
 
           {/* ===== Sidebar ===== */}

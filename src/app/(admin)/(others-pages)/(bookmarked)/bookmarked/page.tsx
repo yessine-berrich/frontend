@@ -1,68 +1,23 @@
+// /home/pfe2026/Desktop/PfeProject/frontend/src/app/(admin)/(others-pages)/(bookmarked)/bookmarked/page.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   Bookmark,
-  Search,
   ArrowLeft,
-  Loader2,
   AlertCircle,
-  ChevronRight,
-  SlidersHorizontal,
-  Clock,
-  TrendingUp,
-  Calendar,
-  Heart,
-  Folder,
-  Tag,
-  X,
-  LogOut
+  ChevronRight
 } from 'lucide-react';
 
 import ArticleCard from '@/components/article/ArticleCard';
-
+import ArticleFilterBar, { FilterOptions } from '@/components/Filter/ArticleFilterBar';
 // ============================================
 // CONFIGURATION
 // ============================================
-
-const API_URL = 'http://localhost:3000'; // Votre backend NestJS
-
-// ============================================
-// TYPES
-// ============================================
-
-interface BookmarkedArticle {
-  id: number;
-  title: string;
-  description: string;
-  content: string;
-  author: {
-    id?: number;
-    name: string;
-    initials?: string;
-    department?: string;
-    avatar?: string | null;
-  } | null;
-  category: {
-    id: number;
-    name: string;
-    slug?: string;
-  } | null;
-  tags: string[];
-  createdAt: string;
-  publishedAt?: string;
-  updatedAt?: string;
-  likesCount: number;
-  bookmarksCount: number;
-  commentsCount?: number;
-  viewsCount?: number;
-  status?: 'draft' | 'published' | 'pending';
-  isLiked?: boolean;
-  isBookmarked?: boolean;
-}
+const API_URL = 'http://localhost:3000';
 
 // ============================================
 // COMPOSANT PRINCIPAL
@@ -77,16 +32,18 @@ export default function BookmarkedArticlesPage() {
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   
-  // Filtres
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'popular'>('recent');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
-  const [tags, setTags] = useState<string[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
+  // Catégories et tags disponibles
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   
+  // Filtres
+  const [filters, setFilters] = useState<FilterOptions>({
+    sortBy: 'recent',
+    selectedCategory: 'all',
+    selectedTag: 'all'
+  });
+  
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
   // ============================================
@@ -102,7 +59,7 @@ export default function BookmarkedArticlesPage() {
   };
 
   // ============================================
-  // ✅ FONCTION PRINCIPALE - ARTICLES BOOKMARKÉS
+  // FONCTIONS API
   // ============================================
 
   const fetchBookmarkedArticles = async () => {
@@ -112,17 +69,12 @@ export default function BookmarkedArticlesPage() {
     try {
       const token = getToken();
       
-      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'Aucun');
-      
       if (!token) {
         router.push('/auth/signin');
         return;
       }
 
-      // ✅ ENDPOINT QUI EXISTE DANS VOTRE BACKEND !
-      // GET /api/articles/user/bookmarked
       const url = getApiUrl('/api/articles/user/bookmarked');
-      console.log('📡 URL appelée:', url);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -131,8 +83,6 @@ export default function BookmarkedArticlesPage() {
           'Content-Type': 'application/json',
         },
       });
-
-      console.log('📡 Status:', response.status);
 
       if (response.status === 401) {
         localStorage.removeItem('auth_token');
@@ -145,18 +95,17 @@ export default function BookmarkedArticlesPage() {
       }
 
       const data = await response.json();
-      console.log('📡 Données reçues:', data);
       
       if (data.success) {
-        // ✅ TRANSFORMATION DES DONNÉES POUR ARTICLECARD
+        const categoriesSet = new Set<string>();
+        const tagsSet = new Set<string>();
+
         const formattedArticles = data.articles.map((article: any) => {
-          // Nom de l'auteur
           const authorName = article.author?.name || 
             (article.author?.firstName && article.author?.lastName 
               ? `${article.author.firstName} ${article.author.lastName}` 
               : 'Utilisateur');
           
-          // Initiales
           const initials = authorName
             .split(' ')
             .map((n: string) => n[0])
@@ -164,19 +113,14 @@ export default function BookmarkedArticlesPage() {
             .toUpperCase()
             .slice(0, 2);
 
-          // ✅ Catégories pour les filtres
-          if (article.category?.name && !categories.includes(article.category.name)) {
-            setCategories(prev => [...prev, article.category.name]);
+          if (article.category?.name) {
+            categoriesSet.add(article.category.name);
           }
 
-          // ✅ Tags pour les filtres
           article.tags?.forEach((tag: string) => {
-            if (tag && !tags.includes(tag)) {
-              setTags(prev => [...prev, tag]);
-            }
+            if (tag) tagsSet.add(tag);
           });
 
-          // ✅ Formatage pour ArticleCard
           return {
             id: String(article.id),
             title: article.title,
@@ -204,16 +148,17 @@ export default function BookmarkedArticlesPage() {
               views: article.viewsCount || 0,
             },
             isLiked: article.isLiked || false,
-            isBookmarked: true, // ✅ Forcément true car ce sont ses bookmarks
+            isBookmarked: true,
             isFeatured: false,
           };
         });
 
         setArticles(formattedArticles);
         setTotalCount(data.count);
+        setAvailableCategories(Array.from(categoriesSet).sort());
+        setAvailableTags(Array.from(tagsSet).sort());
       }
     } catch (err) {
-      console.error('❌ Erreur:', err);
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
       setError(message);
     } finally {
@@ -221,24 +166,14 @@ export default function BookmarkedArticlesPage() {
     }
   };
 
-  // ============================================
-  // FONCTIONS API POUR LES INTERACTIONS
-  // ============================================
-
-  /**
-   * Retirer un bookmark (unbookmark)
-   */
   const handleUnbookmark = async (articleId: string) => {
     try {
       const token = getToken();
       if (!token) return;
 
-      // ✅ Optimistic update - retirer immédiatement de l'UI
-      const articleToRemove = articles.find(a => a.id === articleId);
       setArticles(prev => prev.filter(a => a.id !== articleId));
       setTotalCount(prev => Math.max(0, prev - 1));
 
-      // ✅ Appel API pour retirer le bookmark
       const url = getApiUrl(`/api/articles/${articleId}/bookmark`);
       await fetch(url, {
         method: 'POST',
@@ -247,16 +182,11 @@ export default function BookmarkedArticlesPage() {
           'Content-Type': 'application/json',
         },
       });
-    } catch (err) {
-      console.error('❌ Erreur unbookmark:', err);
-      // Rollback en cas d'erreur
+    } catch {
       await fetchBookmarkedArticles();
     }
   };
 
-  /**
-   * Gérer le like
-   */
   const handleLike = async (articleId: string) => {
     try {
       const token = getToken();
@@ -287,14 +217,11 @@ export default function BookmarkedArticlesPage() {
           'Content-Type': 'application/json',
         },
       });
-    } catch (err) {
-      console.error('❌ Erreur like:', err);
+    } catch {
+      // Silently handle error
     }
   };
 
-  /**
-   * Gérer le partage
-   */
   const handleShare = (articleId: string) => {
     const article = articles.find(a => a.id === articleId);
     if (!article) return;
@@ -314,16 +241,10 @@ export default function BookmarkedArticlesPage() {
     }
   };
 
-  /**
-   * Gérer l'édition
-   */
   const handleEdit = (articleId: string) => {
     router.push(`/articles/edit/${articleId}`);
   };
 
-  /**
-   * Gérer la suppression
-   */
   const handleDelete = async (articleId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
     
@@ -342,21 +263,17 @@ export default function BookmarkedArticlesPage() {
         setArticles(prev => prev.filter(a => a.id !== articleId));
         setTotalCount(prev => prev - 1);
       }
-    } catch (err) {
-      console.error('❌ Erreur suppression:', err);
+    } catch {
+      // Silently handle error
     }
   };
 
-  /**
-   * Déconnexion
-   */
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('knowledgehub-users');
-    router.push('/auth/signin');
+  const handleFilterChange = (newFilters: Partial<FilterOptions>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1);
   };
 
-  // ✅ Chargement initial
+  // Chargement initial
   useEffect(() => {
     fetchBookmarkedArticles();
   }, []);
@@ -367,24 +284,17 @@ export default function BookmarkedArticlesPage() {
 
   const filteredArticles = articles
     .filter(article => {
-      const matchesSearch = searchQuery === '' || 
-        article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.tags.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCategory = filters.selectedCategory === 'all' || article.category.name === filters.selectedCategory;
+      const matchesTag = filters.selectedTag === 'all' || article.tags.includes(filters.selectedTag);
       
-      const matchesCategory = selectedCategory === 'all' || article.category.name === selectedCategory;
-      const matchesTag = selectedTag === 'all' || article.tags.includes(selectedTag);
-      
-      return matchesSearch && matchesCategory && matchesTag;
+      return matchesCategory && matchesTag;
     })
     .sort((a, b) => {
-      if (sortBy === 'recent') {
+      if (filters.sortBy === 'recent') {
         return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-      } else if (sortBy === 'oldest') {
+      } else if (filters.sortBy === 'oldest') {
         return new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime();
-      } else if (sortBy === 'popular') {
+      } else if (filters.sortBy === 'popular') {
         return b.stats.likes - a.stats.likes;
       }
       return 0;
@@ -395,10 +305,6 @@ export default function BookmarkedArticlesPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedTag, sortBy]);
 
   // ============================================
   // RENDU
@@ -422,202 +328,44 @@ export default function BookmarkedArticlesPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/20">
-                  <Bookmark className="h-5 w-5 text-yellow-600 dark:text-yellow-400 fill-current" />
-                </span>
-                Articles sauvegardés
-              </h1>
-              {totalCount > 0 && (
-                <span className="rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400">
-                  {totalCount}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              {totalCount === 0 
-                ? "Vous n'avez pas encore sauvegardé d'articles"
-                : `${totalCount} article${totalCount > 1 ? 's' : ''} dans votre bibliothèque`
-              }
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchBookmarkedArticles}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            <Loader2 className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Actualiser
-          </button>
-          
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20"
-          >
-            <LogOut className="h-4 w-4" />
-            Déconnexion
-          </button>
-        </div>
-      </div>
-
-      {/* Barre de recherche et filtres */}
-      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* Recherche */}
-          <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Rechercher par titre, auteur, catégorie..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2 pl-10 pr-4 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-            />
-          </div>
-
-          {/* Bouton filtres */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 lg:w-auto"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filtres
-            {(selectedCategory !== 'all' || selectedTag !== 'all' || searchQuery) && (
-              <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-xs text-white">
-                {(selectedCategory !== 'all' ? 1 : 0) + (selectedTag !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)}
+      <div className="mb-8 flex items-center gap-4">
+        <button
+          onClick={() => router.back()}
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-primary dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/20">
+                <Bookmark className="h-5 w-5 text-yellow-600 dark:text-yellow-400 fill-current" />
+              </span>
+              Articles sauvegardés
+            </h1>
+            {totalCount > 0 && (
+              <span className="rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400">
+                {totalCount}
               </span>
             )}
-          </button>
+          </div>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {totalCount === 0 
+              ? "Vous n'avez pas encore sauvegardé d'articles"
+              : `${totalCount} article${totalCount > 1 ? 's' : ''} dans votre bibliothèque`
+            }
+          </p>
         </div>
-
-        {/* Panneau de filtres */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="mt-4 overflow-hidden"
-            >
-              <div className="grid grid-cols-1 gap-4 border-t border-gray-200 pt-4 dark:border-gray-700 md:grid-cols-3">
-                {/* Tri */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Trier par
-                  </label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="recent">Plus récents</option>
-                    <option value="oldest">Plus anciens</option>
-                    <option value="popular">Plus populaires</option>
-                  </select>
-                </div>
-
-                {/* Catégorie */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Catégorie
-                  </label>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="all">Toutes les catégories</option>
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Tags */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Tag
-                  </label>
-                  <select
-                    value={selectedTag}
-                    onChange={(e) => setSelectedTag(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="all">Tous les tags</option>
-                    {tags.map(tag => (
-                      <option key={tag} value={tag}>{tag}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Filtres actifs */}
-              {(selectedCategory !== 'all' || selectedTag !== 'all' || searchQuery) && (
-                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Filtres actifs:
-                  </span>
-                  
-                  {searchQuery && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                      "{searchQuery}"
-                      <button onClick={() => setSearchQuery('')}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  
-                  {selectedCategory !== 'all' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
-                      <Folder className="h-3 w-3" />
-                      {selectedCategory}
-                      <button onClick={() => setSelectedCategory('all')}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  
-                  {selectedTag !== 'all' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
-                      <Tag className="h-3 w-3" />
-                      {selectedTag}
-                      <button onClick={() => setSelectedTag('all')}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedCategory('all');
-                      setSelectedTag('all');
-                    }}
-                    className="text-xs font-medium text-gray-500 underline"
-                  >
-                    Tout effacer
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
+
+      {/* 🔥 COMPOSANT DE FILTRES 🔥 */}
+      <ArticleFilterBar
+        categories={availableCategories}
+        tags={availableTags}
+        activeFilters={filters}
+        onFilterChange={handleFilterChange}
+        className="mb-6"
+      />
 
       {/* État d'erreur */}
       {error && (
@@ -673,7 +421,7 @@ export default function BookmarkedArticlesPage() {
         </div>
       )}
 
-      {/* ✅ GRILLE DES ARTICLES */}
+      {/* Grille des articles */}
       {!error && filteredArticles.length > 0 && (
         <>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -692,8 +440,6 @@ export default function BookmarkedArticlesPage() {
                   onLike={() => handleLike(article.id)}
                   onBookmark={() => handleUnbookmark(article.id)}
                   onShare={() => handleShare(article.id)}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
                   showActions={true}
                 />
               </div>
