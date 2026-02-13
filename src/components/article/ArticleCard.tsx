@@ -26,7 +26,7 @@ interface ArticleCardProps {
     isFeatured?: boolean;
     publishedAt: string;
     updatedAt?: string;
-    status: 'draft' | 'published' | 'pending';
+    status: 'draft' | 'published' | 'pending' | 'archived';
     stats: {
       likes: number;
       comments: number;

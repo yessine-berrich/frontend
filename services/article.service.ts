@@ -2,7 +2,7 @@ export interface Article {
   id: number;
   title: string;
   content: string;
-  status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  status: 'published' | 'draft' | 'archived' | 'pending';
   category: {
     id: number;
     name: string;
@@ -25,21 +25,23 @@ export interface CreateArticleDto {
   title: string;
   content: string;
   categoryId: number;
-  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  status?: 'published' | 'draft' | 'archived' | 'pending';
 }
 
 export interface UpdateArticleDto {
   title?: string;
   content?: string;
   categoryId?: number;
-  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  tagIds?: number[];
+  status?: 'published' | 'draft' | 'archived' | 'pending';
+  changeSummary?: string;
 }
 
 export interface SearchArticlesDto {
   q: string;
   limit?: number;
   minSimilarity?: number;
-  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  status?: 'published' | 'draft' | 'archived' | 'pending';
 }
 
 export interface SearchResponse {
@@ -122,7 +124,7 @@ class ArticleService {
       if (response.status === 401) {
         // Token expiré ou invalide
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
+          localStorage.removeItem('auth_token');
           window.location.href = '/login';
         }
       }

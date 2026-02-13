@@ -5,13 +5,16 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import MarkdownEditor from '../markdoun-editor/MarkdownEditor';
 import TagsSelector from '../tags/TagsSelector';
-
-
+import { articleService } from '../../../services/article.service';
+import type { UpdateArticleDto } from '../../../services/article.service';
+import type { CreateArticleDto } from '../../../services/article.service';
+import type { Article } from '../../../services/article.service';
 
 interface CreateArticleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  articleId?: string;
 }
 
 interface Toast {
@@ -39,16 +42,7 @@ interface MediaDto {
   size: number;
 }
 
-interface CreateArticleDto {
-  title: string;
-  content: string;
-  categoryId: number;
-  tagIds: number[];
-  media?: MediaDto[];
-  status?: 'DRAFT' | 'PENDING' | 'PUBLISHED';
-}
-
-export default function CreateArticleModal({ isOpen, onClose, onSuccess }: CreateArticleModalProps) {
+export default function CreateArticleModal({ isOpen, onClose, onSuccess, articleId }: CreateArticleModalProps) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<number | ''>('');
   const [content, setContent] = useState('');
@@ -62,23 +56,36 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
   const [categories, setCategories] = useState<Category[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingArticle, setIsLoadingArticle] = useState(false);
+  const [originalArticle, setOriginalArticle] = useState<Article | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isEditMode = !!articleId;
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
   // Charger les catégories et tags au montage du composant
   useEffect(() => {
     if (isOpen) {
       loadInitialData();
+      if (isEditMode) {
+        loadArticleData();
+      } else {
+        resetForm();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, articleId]);
 
   const loadInitialData = async () => {
     setIsLoadingData(true);
     try {
       // Charger les catégories
-      const categoriesResponse = await fetch('http://localhost:3000/api/categories', {
-              });
+      const categoriesResponse = await fetch(`${API_URL}/categories`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
       
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
@@ -91,8 +98,11 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       }
 
       // Charger les tags
-      const tagsResponse = await fetch('http://localhost:3000/api/tags', {
-              });
+      const tagsResponse = await fetch(`${API_URL}/tags`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
       
       if (tagsResponse.ok) {
         const tagsData = await tagsResponse.json();
@@ -103,6 +113,30 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       showToast('error', '❌ Erreur lors du chargement des données');
     } finally {
       setIsLoadingData(false);
+    }
+  };
+
+  const loadArticleData = async () => {
+    if (!articleId) return;
+    
+    setIsLoadingArticle(true);
+    try {
+      const article = await articleService.findOne(parseInt(articleId));
+      setOriginalArticle(article as any);
+      
+      setTitle(article.title);
+      setCategory(article.category.id);
+      setContent(article.content);
+      
+      if (article.tags) {
+        setSelectedTags(article.tags.map(tag => tag.id));
+      }
+      
+    } catch (error: any) {
+      console.error('Erreur lors du chargement de l\'article:', error);
+      showToast('error', `❌ ${error.message || 'Erreur lors du chargement de l\'article'}`);
+    } finally {
+      setIsLoadingArticle(false);
     }
   };
 
@@ -140,7 +174,83 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
     return true;
   };
 
-  const insertMarkdown = (type: string, value?: string) => {
+  const associateTagsToArticle = async (articleId: number) => {
+    try {
+      const response = await fetch(`${API_URL}/articles/${articleId}/tags`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({ tagIds: selectedTags }),
+      });
+
+      if (!response.ok) {
+        console.warn('Erreur lors de l\'association des tags');
+      }
+    } catch (error) {
+      console.error('Erreur tags:', error);
+    }
+  };
+
+  const uploadMedia = async (articleId: number) => {
+    if (uploadedMedia.length === 0) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/articles/${articleId}/media`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({ media: uploadedMedia }),
+      });
+
+      if (!response.ok) {
+        console.warn('Erreur lors de l\'upload des médias');
+      }
+    } catch (error) {
+      console.error('Erreur media:', error);
+    }
+  };
+
+  const buildUpdateDto = (status: 'DRAFT' | 'PENDING'): UpdateArticleDto | null => {
+    if (!isEditMode || !originalArticle) return null;
+    
+    const dto: UpdateArticleDto = {};
+    let hasChanges = false;
+
+    if (title !== originalArticle.title) {
+      dto.title = title;
+      hasChanges = true;
+    }
+    
+    if (content !== originalArticle.content) {
+      dto.content = content;
+      hasChanges = true;
+    }
+    
+    if (category !== originalArticle.category.id) {
+      dto.categoryId = category as number;
+      hasChanges = true;
+    }
+    
+    const originalTagIds = originalArticle.tags.map(t => t.id).sort();
+    const currentTagIds = [...selectedTags].sort();
+    if (JSON.stringify(originalTagIds) !== JSON.stringify(currentTagIds)) {
+      dto.tagIds = selectedTags;
+      hasChanges = true;
+    }
+
+    dto.status = status;
+    dto.changeSummary = status === 'draft' 
+      ? 'Mise à jour du brouillon' 
+      : 'Soumission pour validation';
+
+    return { ...dto, hasChanges } as any;
+  };
+
+  const insertMarkdown = (type: string) => {
     if (!textareaRef.current) return;
 
     const textarea = textareaRef.current;
@@ -169,7 +279,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
         newText = content.substring(0, start) + `\`${selectedText || 'code'}\`` + content.substring(end);
         break;
       case 'codeblock':
-        const language = prompt('Langage du code (js, python, html, etc.) :', 'javascript');
+        const language = prompt('Langage du code :', 'javascript');
         newText = content.substring(0, start) + `\`\`\`${language || ''}\n${selectedText || '// Votre code ici'}\n\`\`\`\n` + content.substring(end);
         break;
       case 'list':
@@ -187,44 +297,8 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
           newText = content.substring(0, start) + `[${selectedText || 'texte du lien'}](${url})` + content.substring(end);
         }
         break;
-      case 'image':
-        const imageUrl = prompt('URL de l\'image :', 'https://');
-        const altText = prompt('Texte alternatif :', '');
-        if (imageUrl) {
-          newText = content.substring(0, start) + `![${altText || ''}](${imageUrl})` + content.substring(end);
-        }
-        break;
-      case 'table':
-        const rows = prompt('Nombre de lignes :', '3');
-        const cols = prompt('Nombre de colonnes :', '3');
-        if (rows && cols) {
-          let table = '\n';
-          table += '|';
-          for (let i = 0; i < parseInt(cols); i++) {
-            table += ` Header ${i+1} |`;
-          }
-          table += '\n|';
-          for (let i = 0; i < parseInt(cols); i++) {
-            table += ' --- |';
-          }
-          table += '\n';
-          for (let i = 0; i < parseInt(rows); i++) {
-            table += '|';
-            for (let j = 0; j < parseInt(cols); j++) {
-              table += ` Cell ${i+1}-${j+1} |`;
-            }
-            table += '\n';
-          }
-          newText = content.substring(0, start) + table + content.substring(end);
-        }
-        break;
-      case 'checkbox':
-        newText = content.substring(0, start) + `- [ ] ${selectedText || 'tâche à faire'}\n` + content.substring(end);
-        break;
       case 'hr':
         newText = content.substring(0, start) + `\n---\n` + content.substring(end);
-        break;
-      default:
         break;
     }
 
@@ -258,16 +332,14 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       const formData = new FormData();
       formData.append('file', file);
 
-      // Simuler la progression
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 100);
 
-      // Upload réel vers votre API
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: formData,
       });
@@ -282,7 +354,6 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       const data = await response.json();
       const imageUrl = data.url;
 
-      // Ajouter aux médias uploadés
       const mediaDto: MediaDto = {
         url: imageUrl,
         filename: file.name,
@@ -291,7 +362,6 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       };
       setUploadedMedia(prev => [...prev, mediaDto]);
 
-      // Insérer dans le contenu
       const textarea = textareaRef.current;
       if (textarea) {
         const start = textarea.selectionStart;
@@ -313,43 +383,69 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
     }
   };
 
+  // ✅ GESTION DU BROUILLON
   const handleSaveDraft = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
     try {
-      const articleDto: CreateArticleDto = {
-        title,
-        content,
-        categoryId: category,
-        tagIds: selectedTags,
-        media: uploadedMedia,
-        status: 'DRAFT',
-      };
+      if (isEditMode && articleId) {
+        // 📝 MODE ÉDITION - Envoyer UNIQUEMENT les champs modifiés
+        const updateDto = buildUpdateDto('draft');
+        
+        if (!updateDto || !(updateDto as any).hasChanges) {
+          showToast('info', 'Aucune modification détectée');
+          setIsSubmitting(false);
+          return;
+        }
 
-      const response = await fetch('/api/articles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(articleDto),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors de la sauvegarde');
+        // Nettoyer la propriété hasChanges avant d'envoyer
+        const { hasChanges, ...dtoToSend } = updateDto as any;
+        
+        const savedArticle = await articleService.update(parseInt(articleId), dtoToSend);
+        showToast('success', '✅ Brouillon mis à jour avec succès !');
+        
+        // Mettre à jour l'article original avec les nouvelles valeurs
+        setOriginalArticle(prev => ({
+          ...prev!,
+          title: title,
+          content: content,
+          category: { ...prev!.category, id: category as number },
+          tags: availableTags.filter(t => selectedTags.includes(t.id)),
+          status: 'draft'
+        }));
+        
+      } else {
+        // ✨ MODE CRÉATION - DTO complet
+        const createDto: CreateArticleDto = {
+          title,
+          content,
+          categoryId: category as number,
+          status: 'draft',
+        };
+        
+        const savedArticle = await articleService.create(createDto);
+        showToast('success', '✅ Brouillon sauvegardé avec succès !');
+        
+        // Associer les tags après création
+        if (selectedTags.length > 0) {
+          await associateTagsToArticle(savedArticle.id);
+        }
       }
 
-      const savedArticle = await response.json();
-      console.log('Brouillon sauvegardé:', savedArticle);
-      
-      showToast('success', '✅ Brouillon sauvegardé avec succès !');
+      // Uploader les médias (si nécessaire)
+      // if (uploadedMedia.length > 0) {
+      //   await uploadMedia(savedArticle.id);
+      // }
       
       setTimeout(() => {
         resetForm();
         onSuccess?.();
+        if (!isEditMode) {
+          onClose();
+        }
       }, 1000);
+      
     } catch (error: any) {
       console.error('Erreur:', error);
       showToast('error', `❌ ${error.message || 'Erreur lors de la sauvegarde'}`);
@@ -358,44 +454,86 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
     }
   };
 
+  // ✅ GESTION DE LA SOUMISSION POUR VALIDATION
   const handleSubmitForValidation = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
     try {
-      const articleDto: CreateArticleDto = {
-        title,
-        content,
-        categoryId: category,
-        tagIds: selectedTags,
-        media: uploadedMedia,
-        status: 'pending',
-      };
+      if (isEditMode && articleId) {
+        // 📝 MODE ÉDITION - Envoyer UNIQUEMENT les champs modifiés
+        const updateDto = buildUpdateDto('pending');
+        
+        if (!updateDto) {
+          showToast('error', 'Erreur lors de la construction du DTO');
+          setIsSubmitting(false);
+          return;
+        }
 
-      const response = await fetch('http://localhost:3000/api/articles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        body: JSON.stringify(articleDto),
-      });
+        // Nettoyer la propriété hasChanges avant d'envoyer
+        const { hasChanges, ...dtoToSend } = updateDto as any;
+        
+        // Vérifier s'il y a des changements (hors statut et changeSummary)
+        const hasContentChanges = Object.keys(dtoToSend).some(
+          key => !['status', 'changeSummary'].includes(key)
+        );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors de la soumission');
+        if (!hasContentChanges) {
+          // Pas de changements de contenu, seulement le statut
+          const statusUpdate = { 
+            status: 'pending',
+            changeSummary: 'Soumission pour validation (aucun changement)'
+          };
+          await articleService.update(parseInt(articleId), statusUpdate);
+          showToast('success', '✅ Article soumis pour validation !');
+        } else {
+          const submittedArticle = await articleService.update(parseInt(articleId), dtoToSend);
+          showToast('success', '✅ Article mis à jour et soumis pour validation !');
+          
+          // Mettre à jour l'article original
+          setOriginalArticle(prev => ({
+            ...prev!,
+            title: dtoToSend.title || prev!.title,
+            content: dtoToSend.content || prev!.content,
+            category: dtoToSend.categoryId 
+              ? { ...prev!.category, id: dtoToSend.categoryId }
+              : prev!.category,
+            tags: dtoToSend.tagIds 
+              ? availableTags.filter(t => dtoToSend.tagIds?.includes(t.id))
+              : prev!.tags,
+            status: 'pending'
+          }));
+        }
+        
+      } else {
+        // ✨ MODE CRÉATION - DTO complet
+        const createDto: CreateArticleDto = {
+          title,
+          content,
+          categoryId: category as number,
+          status: 'pending',
+        };
+        
+        const submittedArticle = await articleService.create(createDto);
+        showToast('success', '✅ Article soumis pour validation !');
+        
+        // Associer les tags après création
+        if (selectedTags.length > 0) {
+          await associateTagsToArticle(submittedArticle.id);
+        }
       }
 
-      const submittedArticle = await response.json();
-      console.log('Article soumis:', submittedArticle);
-      
-      showToast('success', '✅ Article soumis pour validation !');
+      // Uploader les médias (si nécessaire)
+      // if (uploadedMedia.length > 0) {
+      //   await uploadMedia(savedArticle.id);
+      // }
       
       setTimeout(() => {
         resetForm();
-        onClose();
         onSuccess?.();
+        onClose();
       }, 1000);
+      
     } catch (error: any) {
       console.error('Erreur:', error);
       showToast('error', `❌ ${error.message || 'Erreur lors de la soumission'}`);
@@ -411,6 +549,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
     setSelectedTags([]);
     setUploadedMedia([]);
     setShowPreview(false);
+    setOriginalArticle(null);
   };
 
   // Raccourcis clavier
@@ -452,20 +591,29 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
 
   if (!isOpen) return null;
 
+  const modalTitle = isEditMode ? 'Modifier l\'article' : 'Créer un article';
+  const draftButtonText = isEditMode ? 'Mettre à jour le brouillon' : 'Sauvegarder brouillon';
+  const submitButtonText = isEditMode ? 'Mettre à jour et soumettre' : 'Soumettre pour validation';
+
   return (
     <>
       <div className="fixed inset-0 z-[99999] flex items-center justify-center">
-        {/* Overlay */}
         <div 
           className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fadeIn"
           onClick={onClose}
         />
         
-        {/* Modal */}
         <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-slideUp">
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-8 py-6 flex items-center justify-between z-10">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Créer un article</h2>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{modalTitle}</h2>
+              {isEditMode && originalArticle && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Statut actuel : <span className="font-medium">{originalArticle.status}</span>
+                </p>
+              )}
+            </div>
             <button
               onClick={onClose}
               disabled={isSubmitting}
@@ -477,10 +625,12 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
 
           {/* Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-180px)] px-8 py-6 custom-scrollbar">
-            {isLoadingData ? (
+            {isLoadingData || (isEditMode && isLoadingArticle) ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 size={32} className="animate-spin text-blue-600" />
-                <span className="ml-3 text-gray-600 dark:text-gray-400">Chargement...</span>
+                <span className="ml-3 text-gray-600 dark:text-gray-400">
+                  {isLoadingArticle ? 'Chargement de l\'article...' : 'Chargement...'}
+                </span>
               </div>
             ) : (
               <>
@@ -555,19 +705,19 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveDraft}
-                disabled={isSubmitting || isLoadingData}
+                disabled={isSubmitting || isLoadingData || (isEditMode && isLoadingArticle)}
                 className="px-6 py-2.5 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isSubmitting && <Loader2 size={18} className="animate-spin" />}
-                Sauvegarder brouillon
+                {draftButtonText}
               </button>
               <button
                 onClick={handleSubmitForValidation}
-                disabled={isSubmitting || isLoadingData}
+                disabled={isSubmitting || isLoadingData || (isEditMode && isLoadingArticle)}
                 className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isSubmitting && <Loader2 size={18} className="animate-spin" />}
-                Soumettre pour validation
+                {submitButtonText}
               </button>
             </div>
           </div>
@@ -575,22 +725,22 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess }: Creat
       </div>
 
       {/* Toasts */}
-        <div className="fixed bottom-6 right-6 z-[999999] space-y-3 pointer-events-auto">
+      <div className="fixed bottom-6 right-6 z-[999999] space-y-3">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 px-5 py-4 rounded-lg shadow-2xl backdrop-blur-sm animate-slideIn pointer-events-auto ${
+            className={`flex items-center gap-3 px-5 py-4 rounded-lg shadow-2xl backdrop-blur-sm animate-slideIn ${
               toast.type === 'success'
-                ? 'bg-green-600 text-white shadow-green-500/30'
+                ? 'bg-green-600 text-white'
                 : toast.type === 'error'
-                ? 'bg-red-600 text-white shadow-red-500/30'
-                : 'bg-blue-600 text-white shadow-blue-500/30'
+                ? 'bg-red-600 text-white'
+                : 'bg-blue-600 text-white'
             }`}
           >
             <p className="font-medium">{toast.message}</p>
             <button 
               onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} 
-              className="hover:opacity-80 transition-opacity pointer-events-auto"
+              className="hover:opacity-80 transition-opacity"
             >
               <X size={18} />
             </button>

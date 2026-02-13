@@ -5,6 +5,7 @@ import ArticleCard from '@/components/article/ArticleCard';
 import TrendingArticles from '@/components/article/Trendingarticles';
 import TopContributors from '@/components/users/Topcontributors';
 import { FileText, Loader2 } from 'lucide-react';
+import CreateArticleModal from '@/components/modals/CreateArticleModal';
 
 interface Author {
   id: number;
@@ -46,6 +47,9 @@ export default function ArticlesPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | undefined>();
   const [userToken, setUserToken] = useState<string | undefined>();
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [editingArticleId, setEditingArticleId] = useState<string | undefined>();
+
 
   useEffect(() => {
     // Récupérer les informations de l'utilisateur connecté
@@ -73,6 +77,17 @@ export default function ArticlesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // NOUVELLE FONCTION: Gérer la fermeture du modal
+  const handleCloseModal = () => {
+    setCreateModalOpen(false);
+    setEditingArticleId(undefined);
+  };
+
+  // NOUVELLE FONCTION: Rafraîchir les articles après succès
+  const handleArticleSuccess = () => {
+    fetchArticles(); // Recharger la liste des articles
   };
 
   const handleLike = async (id: string) => {
@@ -135,7 +150,8 @@ export default function ArticlesPage() {
 
   const handleEdit = (id: string) => {
     console.log('Edit:', id);
-    window.location.href = `/articles/edit/${id}`;
+    setEditingArticleId(id);
+    setCreateModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -301,6 +317,12 @@ export default function ArticlesPage() {
                 </button>
               </div>
             )}
+            <CreateArticleModal
+        isOpen={isCreateModalOpen}
+        onClose={handleCloseModal}
+        onSuccess={handleArticleSuccess}
+        articleId={editingArticleId}
+      />
           </div>
 
           {/* ===== Sidebar ===== */}
