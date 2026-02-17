@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
 import { FileText } from 'lucide-react';
 import { fetchCurrentUser } from '../../../../../services/auth.service';
 import EditableUserProfileHeader from '@/components/user-profile/EditableUserProfileHeader';
@@ -25,11 +24,8 @@ export default function CurrentUserProfilePageWithAPI() {
   const loadUserData = async () => {
     setLoading(true);
     try {
-      // Récupérer l'utilisateur connecté via votre service
       const user = await fetchCurrentUser();
       setUserData(user);
-
-      // Charger les articles de l'utilisateur
       await loadUserArticles(user.id);
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -38,136 +34,227 @@ export default function CurrentUserProfilePageWithAPI() {
     }
   };
 
-  // Dans CurrentUserProfilePageWithAPI.tsx
-
-const loadUserArticles = async (userId: string) => {
-  try {
-    const response = await fetch(`http://localhost:3000/api/articles/user/${userId}`, {
-      credentials: 'include',
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-            
-      // Adapter la structure de données selon votre endpoint
-      let articles = [];
+  const loadUserArticles = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
       
-      if (data.articles && Array.isArray(data.articles)) {
-        // Format: { success: true, count: X, articles: [...] }
-        articles = data.articles;
-      } else if (Array.isArray(data)) {
-        // Format: [...]
-        articles = data;
-      } else {
-        console.error('Format de réponse inattendu:', data);
-        return;
+      const response = await fetch(`http://localhost:3000/api/articles/user/${userId}`, {
+        credentials: 'include',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`,
+        } : undefined,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Adapter selon le format de réponse
+        let articles = [];
+        if (data.articles && Array.isArray(data.articles)) {
+          articles = data.articles;
+        } else if (Array.isArray(data)) {
+          articles = data;
+        } else {
+          console.error('Format de réponse inattendu:', data);
+          return;
+        }
+
+        const uid = parseInt(userId);
+
+        // Transformer les articles avec toutes les informations nécessaires
+        const formattedArticles = articles.map((article: any) => {
+          // Récupérer les stats
+          const likesCount = article.likes?.length || article.likesCount || article.stats?.likes || 0;
+          const commentsCount = article.comments?.length || article.commentsCount || article.stats?.comments || 0;
+          const viewsCount = article.viewsCount || article.stats?.views || 0;
+          
+          // Vérifier si l'utilisateur courant a liké/bookmarké
+          const isLiked = article.likes?.some((like: any) => 
+            like.id === uid || like.userId === uid
+          ) || article.isLiked || false;
+          
+          const isBookmarked = article.bookmarks?.some((bookmark: any) => 
+            bookmark.id === uid || bookmark.userId === uid
+          ) || article.isBookmarked || false;
+
+          return {
+            id: article.id.toString(),
+            title: article.title,
+            description: article.description || article.content?.substring(0, 150) + '...' || '',
+            content: article.content,
+            author: {
+              id: article.author?.id || uid,
+              name: article.author?.name || `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || 'Utilisateur',
+              initials: article.author?.initials || 
+                ((userData?.firstName?.charAt(0) || '') + (userData?.lastName?.charAt(0) || '')).toUpperCase() || 'U',
+              department: article.author?.department || userData?.department || 'Membre',
+              avatar: article.author?.avatar || article.author?.profileImage || userData?.profileImage,
+            },
+            category: article.category ? {
+              name: article.category.name,
+              slug: article.category.name?.toLowerCase().replace(/\s+/g, '-') || 'general',
+            } : { name: 'Général', slug: 'general' },
+            tags: article.tags?.map((tag: any) => tag.name || tag) || [],
+            publishedAt: article.publishedAt || article.createdAt,
+            status: article.status || 'published',
+            stats: {
+              likes: likesCount,
+              comments: commentsCount,
+              views: viewsCount,
+            },
+            isLiked: isLiked,
+            isBookmarked: isBookmarked,
+            isFeatured: article.isFeatured || false,
+            // Ajouter les informations complètes pour référence
+            likes: article.likes || [],
+            bookmarks: article.bookmarks || [],
+            comments: article.comments || [],
+          };
+        });
+        
+        setUserArticles(formattedArticles);
       }
-
-      // Transformer les articles pour correspondre au format attendu par ArticleCard
-      const formattedArticles = articles.map((article: any) => ({
-        id: article.id,
-        title: article.title,
-        description: article.description || article.content?.substring(0, 150) + '...' || '',
-        content: article.content,
-        authorId: article.author?.id || userId,
-        authorName: article.author?.name || `${userData?.firstName} ${userData?.lastName}`,
-        category: article.category ? {
-          name: article.category.name,
-          slug: article.category.name?.toLowerCase().replace(/\s+/g, '-') || 'general',
-        } : { name: 'Général', slug: 'general' },
-        tags: article.tags || [],
-        isFeatured: article.isFeatured || false,
-        publishedAt: article.createdAt || article.publishedAt || new Date().toISOString(),
-        status: article.status || 'published',
-        stats: {
-          likes: article.likesCount || article.stats?.likes || 0,
-          comments: article.commentsCount || article.stats?.comments || 0,
-          views: article.viewsCount || article.stats?.views || 0,
-        },
-        isLiked: article.isLiked || false,
-        isBookmarked: article.isBookmarked || false,
-      }));
-      
-      setUserArticles(formattedArticles);
+    } catch (error) {
+      console.error('Error loading articles:', error);
     }
-  } catch (error) {
-    console.error('Error loading articles:', error);
-  }
-};
+  };
 
   // Calculer les statistiques à partir des vraies données
   const userStats = {
-    totalArticles: userArticles.length,
+    totalArticles: userArticles.filter(a => a.status === 'published').length,
     totalLikes: userArticles.reduce((sum, article) => sum + (article.stats?.likes || 0), 0),
     totalComments: userArticles.reduce((sum, article) => sum + (article.stats?.comments || 0), 0),
     totalViews: userArticles.reduce((sum, article) => sum + (article.stats?.views || 0), 0),
   };
 
   const handleSaveProfile = async (updatedProfile: any) => {
-    // La mise à jour est déjà faite dans le modal, il suffit de rafraîchir
     await loadUserData();
   };
 
   const handleLike = async (id: string) => {
     try {
-      await fetch(`http://localhost:3000/api/articles/${id}/like`, {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        alert('Veuillez vous connecter');
+        return;
+      }
+
+      // Optimistic update
+      setUserArticles(prev => prev.map(article => {
+        if (article.id === id) {
+          const newIsLiked = !article.isLiked;
+          return {
+            ...article,
+            isLiked: newIsLiked,
+            stats: {
+              ...article.stats,
+              likes: article.stats.likes + (newIsLiked ? 1 : -1)
+            }
+          };
+        }
+        return article;
+      }));
+
+      const response = await fetch(`http://localhost:3000/api/articles/${id}/like`, {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
-      // Recharger les articles pour mettre à jour les stats
-      if (userData) {
+      
+      if (!response.ok) {
+        // Rollback en cas d'erreur
         await loadUserArticles(userData.id);
       }
     } catch (error) {
       console.error('Error liking article:', error);
+      await loadUserArticles(userData.id);
     }
   };
 
   const handleBookmark = async (id: string) => {
     try {
-      await fetch(`http://localhost:3000/api/articles/${id}/bookmark`, {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        alert('Veuillez vous connecter');
+        return;
+      }
+
+      // Optimistic update
+      setUserArticles(prev => prev.map(article => {
+        if (article.id === id) {
+          return {
+            ...article,
+            isBookmarked: !article.isBookmarked
+          };
+        }
+        return article;
+      }));
+
+      const response = await fetch(`http://localhost:3000/api/articles/${id}/bookmark`, {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
+      
+      if (!response.ok) {
+        await loadUserArticles(userData.id);
+      }
     } catch (error) {
       console.error('Error bookmarking article:', error);
+      await loadUserArticles(userData.id);
     }
   };
 
   const handleShare = (id: string) => {
-    // Partage via navigator.share ou copie du lien
-    const url = `${window.location.origin}/article/${id}`;
+    const url = `${window.location.origin}/articles/${id}`;
     if (navigator.share) {
       navigator.share({
         title: 'Partager cet article',
         url: url,
+      }).catch(() => {
+        navigator.clipboard.writeText(url);
       });
     } else {
       navigator.clipboard.writeText(url);
-      alert('Lien copié dans le presse-papiers !');
     }
   };
 
   const handleEdit = (id: string) => {
-    window.location.href = `/articles/edit/${id}`;
+    // Ouvrir le modal d'édition - sera géré par le composant ArticleCard
+    console.log('Edit article:', id);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
 
     try {
-      await fetch(`http://localhost:3000/api/articles/${id}`, {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`http://localhost:3000/api/articles/${id}`, {
         method: 'DELETE',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
-      // Recharger les articles
-      if (userData) {
+      
+      if (response.ok) {
         await loadUserArticles(userData.id);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la suppression');
       }
     } catch (error) {
       console.error('Error deleting article:', error);
       alert('Erreur lors de la suppression');
     }
+  };
+
+  const handleArticleUpdated = () => {
+    loadUserArticles(userData.id);
   };
 
   // Loading state
@@ -221,6 +308,9 @@ const loadUserArticles = async (userId: string) => {
     );
   }
 
+  const publishedArticles = userArticles.filter(a => a.status === 'published');
+  const draftArticles = userArticles.filter(a => a.status === 'draft');
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 py-8">
@@ -244,7 +334,6 @@ const loadUserArticles = async (userId: string) => {
           
           {/* ===== Colonne de gauche : Informations profil ===== */}
           <div className="space-y-6">
-            {/* Informations complètes */}
             <EditableUserAboutCard 
               user={{
                 bio: userData.bio,
@@ -260,7 +349,6 @@ const loadUserArticles = async (userId: string) => {
               isCurrentUser={true}
             />
             
-            {/* Statistiques */}
             <UserStatsCard stats={userStats} />
           </div>
 
@@ -279,13 +367,6 @@ const loadUserArticles = async (userId: string) => {
                       Gérez et suivez les performances de vos publications
                     </p>
                   </div>
-                  
-                  <button 
-                    onClick={() => window.location.href = '/articles/new'}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-                  >
-                    Nouvel article
-                  </button>
                 </div>
 
                 {/* Onglets */}
@@ -298,7 +379,7 @@ const loadUserArticles = async (userId: string) => {
                         : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
                     }`}
                   >
-                    Publiés ({userArticles.filter(a => a.status === 'published').length})
+                    Publiés ({publishedArticles.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('drafts')}
@@ -308,104 +389,36 @@ const loadUserArticles = async (userId: string) => {
                         : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
                     }`}
                   >
-                    Brouillons ({userArticles.filter(a => a.status === 'draft').length})
+                    Brouillons ({draftArticles.length})
                   </button>
                 </div>
               </div>
 
               {/* Liste des articles */}
               <div className="space-y-6">
-                {activeTab === 'articles' ? (
-                  userArticles.filter(a => a.status === 'published').length > 0 ? (
-                    <>
-                      {userArticles.filter(a => a.status === 'published').map((article) => (
-                        <ArticleCard
-                          key={article.id}
-                          article={{
-                            ...article,
-                            author: {
-                              id: userData.id,
-                              name: `${userData.firstName} ${userData.lastName}`,
-                              initials: `${userData.firstName[0]}${userData.lastName[0]}`,
-                              department: userData.department || 'IT',
-                              avatar: userData.profileImage,
-                            },
-                          }}
-                          onLike={handleLike}
-                          onBookmark={handleBookmark}
-                          onShare={handleShare}
-                          onEdit={handleEdit}
-                          onDelete={handleDelete}
-                          showActions={true}
-                        />
-                      ))}
-
-                      {/* Résumé des performances */}
-                      {userArticles.filter(a => a.status === 'published').length > 0 && (
-                        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
-                          <h4 className="font-semibold text-gray-800 dark:text-white/90 mb-4">
-                            Résumé des performances
-                          </h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                              <div className="text-sm text-blue-600 dark:text-blue-400">Engagement moyen</div>
-                              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                                {userStats.totalArticles > 0 
-                                  ? Math.round((userStats.totalLikes + userStats.totalComments) / userStats.totalArticles)
-                                  : 0}
-                              </div>
-                            </div>
-                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                              <div className="text-sm text-green-600 dark:text-green-400">Vues/article</div>
-                              <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                                {userStats.totalArticles > 0 
-                                  ? Math.round(userStats.totalViews / userStats.totalArticles)
-                                  : 0}
-                              </div>
-                            </div>
-                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                              <div className="text-sm text-purple-600 dark:text-purple-400">Taux de likes</div>
-                              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                                {userStats.totalViews > 0 
-                                  ? Math.round((userStats.totalLikes / userStats.totalViews) * 100)
-                                  : 0}%
-                              </div>
-                            </div>
-                            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                              <div className="text-sm text-orange-600 dark:text-orange-400">Taux de commentaires</div>
-                              <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
-                                {userStats.totalViews > 0 
-                                  ? Math.round((userStats.totalComments / userStats.totalViews) * 100)
-                                  : 0}%
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="py-12 text-center">
-                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="text-gray-400 dark:text-gray-500" size={24} />
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        Aucun article publié
-                      </h3>
-                      <p className="text-gray-500 dark:text-gray-400 mb-6">
-                        Commencez à partager vos connaissances
-                      </p>
-                      <button 
-                        onClick={() => window.location.href = '/articles/new'}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                      >
-                        Créer un article
-                      </button>
+                {(activeTab === 'articles' ? publishedArticles : draftArticles).length === 0 ? (
+                  <div className="py-12 text-center">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="text-gray-400 dark:text-gray-500" size={24} />
                     </div>
-                  )
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                      {activeTab === 'articles' ? 'Aucun article publié' : 'Aucun brouillon'}
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-6">
+                      {activeTab === 'articles' 
+                        ? 'Commencez à partager vos connaissances'
+                        : 'Commencez à rédiger un nouvel article'}
+                    </p>
+                    <button 
+                      onClick={() => window.location.href = '/articles/new'}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Créer un article
+                    </button>
+                  </div>
                 ) : (
-                  // Section Brouillons
-                  userArticles.filter(a => a.status === 'draft').length > 0 ? (
-                    userArticles.filter(a => a.status === 'draft').map((article) => (
+                  <>
+                    {(activeTab === 'articles' ? publishedArticles : draftArticles).map((article) => (
                       <ArticleCard
                         key={article.id}
                         article={{
@@ -413,35 +426,73 @@ const loadUserArticles = async (userId: string) => {
                           author: {
                             id: userData.id,
                             name: `${userData.firstName} ${userData.lastName}`,
-                            initials: `${userData.firstName[0]}${userData.lastName[0]}`,
-                            department: userData.department || 'IT',
+                            initials: `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase(),
+                            department: userData.department || 'Membre',
                             avatar: userData.profileImage,
                           },
                         }}
+                        onLike={handleLike}
+                        onBookmark={handleBookmark}
+                        onShare={handleShare}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
+                        onArticleUpdated={handleArticleUpdated}
                         showActions={true}
                       />
-                    ))
-                  ) : (
-                    <div className="py-12 text-center">
-                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="text-gray-400 dark:text-gray-500" size={24} />
+                    ))}
+
+                    {/* Résumé des performances (onglet publié seulement) */}
+                    {activeTab === 'articles' && publishedArticles.length > 0 && (
+                      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
+                        <h4 className="font-semibold text-gray-800 dark:text-white/90 mb-4">
+                          Résumé des performances
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <div className="text-sm text-blue-600 dark:text-blue-400">Engagement moyen</div>
+                            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                              {userStats.totalArticles > 0 
+                                ? Math.round((userStats.totalLikes + userStats.totalComments) / userStats.totalArticles)
+                                : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <div className="text-sm text-green-600 dark:text-green-400">Vues/article</div>
+                            <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                              {userStats.totalArticles > 0 
+                                ? Math.round(userStats.totalViews / userStats.totalArticles)
+                                : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                            <div className="text-sm text-purple-600 dark:text-purple-400">Taux de likes</div>
+                            <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                              {userStats.totalViews > 0 
+                                ? Math.round((userStats.totalLikes / userStats.totalViews) * 100)
+                                : 0}%
+                            </div>
+                          </div>
+                          <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                            <div className="text-sm text-orange-600 dark:text-orange-400">Taux de commentaires</div>
+                            <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                              {userStats.totalViews > 0 
+                                ? Math.round((userStats.totalComments / userStats.totalViews) * 100)
+                                : 0}%
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Résumé détaillé */}
+                        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-medium">Total likes reçus :</span> {userStats.totalLikes} ·{' '}
+                            <span className="font-medium">Total commentaires :</span> {userStats.totalComments} ·{' '}
+                            <span className="font-medium">Total vues :</span> {userStats.totalViews}
+                          </p>
+                        </div>
                       </div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        Aucun brouillon
-                      </h3>
-                      <p className="text-gray-500 dark:text-gray-400 mb-6">
-                        Commencez à rédiger un nouvel article
-                      </p>
-                      <button 
-                        onClick={() => window.location.href = '/articles/new'}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                      >
-                        Créer un article
-                      </button>
-                    </div>
-                  )
+                    )}
+                  </>
                 )}
               </div>
             </div>

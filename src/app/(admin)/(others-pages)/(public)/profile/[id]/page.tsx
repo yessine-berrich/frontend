@@ -8,7 +8,6 @@ import UserAboutCard from '@/components/public-profile/UserAboutCard';
 import UserStatsCard from '@/components/public-profile/UserStatsCard';
 import UserProfileHeader from '@/components/public-profile/UserProfileHeader';
 
-// Interface pour typer les données utilisateur depuis le backend
 interface User {
   id: number;
   firstName: string;
@@ -32,43 +31,6 @@ interface User {
   updatedAt: string;
 }
 
-// Interface pour les articles (format backend)
-interface Article {
-  id: number;
-  title: string;
-  content: string;
-  description?: string;
-  status: string;
-  viewsCount: number;
-  createdAt: string;
-  updatedAt: string;
-  author: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    profileImage?: string;
-    role: string;
-  };
-  category: {
-    id: number;
-    name: string;
-  };
-  tags?: Array<{ id: number; name: string }> | string[]; // Les tags peuvent être sous différentes formes
-  likes?: any[];
-  bookmarks?: any[];
-  comments?: any[];
-  likesCount?: number;
-  commentsCount?: number;
-  bookmarksCount?: number;
-  isLiked?: boolean;
-  isBookmarked?: boolean;
-  stats?: {
-    likes: number;
-    comments: number;
-    views: number;
-  };
-}
-
 export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -80,14 +42,53 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageTimestamp, setImageTimestamp] = useState(Date.now());
-  const [userToken, setUserToken] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+  // Récupérer l'ID utilisateur depuis le token
+  const getUserIdFromToken = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return null;
+    
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const decoded = JSON.parse(jsonPayload);
+      return decoded.sub || decoded.id || decoded.userId || null;
+    } catch {
+      const userIdFromStorage = localStorage.getItem('userId');
+      return userIdFromStorage ? parseInt(userIdFromStorage) : null;
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
-    setUserToken(token);
+    const userIdFromToken = getUserIdFromToken();
+    
+    if (token && userIdFromToken) {
+      setIsAuthenticated(true);
+      setCurrentUserId(userIdFromToken);
+    } else {
+      const userIdFromStorage = localStorage.getItem('userId');
+      if (userIdFromStorage) {
+        setIsAuthenticated(true);
+        setCurrentUserId(parseInt(userIdFromStorage));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUserId(null);
+      }
+    }
   }, []);
+
+  const getToken = () => {
+    return localStorage.getItem('auth_token');
+  };
 
   const getProfileImageUrl = (userData: User) => {
     if (userData?.avatar || userData?.profileImage) {
@@ -124,10 +125,11 @@ export default function PublicProfilePage() {
         
         setUser(normalizedUser);
         
-        // Récupérer les articles de l'utilisateur avec le token si disponible
+        // Récupérer les articles de l'utilisateur
+        const token = getToken();
         const headers: HeadersInit = {};
-        if (userToken) {
-          headers['Authorization'] = `Bearer ${userToken}`;
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
         
         const articlesResponse = await fetch(`${API_URL}/api/articles/user/${userId}`, {
@@ -136,11 +138,9 @@ export default function PublicProfilePage() {
         
         if (articlesResponse.ok) {
           const articlesData = await articlesResponse.json();
-          console.log('📊 Articles reçus:', articlesData);
           
-          // ✅ TRANSFORMER LES ARTICLES POUR CORRESPONDRE AU FORMAT ATTENDU PAR ARTICLECARD
+          // Transformer les articles
           const formattedArticles = articlesData.map((article: any) => {
-            // Extraire les infos de l'auteur
             const authorName = article.author 
               ? `${article.author.firstName || ''} ${article.author.lastName || ''}`.trim() 
               : 'Utilisateur';
@@ -152,7 +152,6 @@ export default function PublicProfilePage() {
               .toUpperCase()
               .slice(0, 2) || 'U';
 
-            // Formater les tags (peuvent être un tableau d'objets ou de strings)
             let tags: string[] = [];
             if (Array.isArray(article.tags)) {
               tags = article.tags.map((tag: any) => {
@@ -160,6 +159,26 @@ export default function PublicProfilePage() {
                 if (tag && typeof tag === 'object' && tag.name) return tag.name;
                 return String(tag);
               });
+            }
+            
+            // Vérifier si l'utilisateur courant a liké
+            let isLiked = false;
+            if (currentUserId && article.likes && Array.isArray(article.likes)) {
+              isLiked = article.likes.some((like: any) => 
+                like.id === currentUserId || 
+                like.userId === currentUserId || 
+                like.user?.id === currentUserId
+              );
+            }
+            
+            // Vérifier si l'utilisateur courant a bookmarké
+            let isBookmarked = false;
+            if (currentUserId && article.bookmarks && Array.isArray(article.bookmarks)) {
+              isBookmarked = article.bookmarks.some((bookmark: any) => 
+                bookmark.id === currentUserId || 
+                bookmark.userId === currentUserId || 
+                bookmark.user?.id === currentUserId
+              );
             }
 
             return {
@@ -183,12 +202,12 @@ export default function PublicProfilePage() {
               updatedAt: article.updatedAt,
               status: article.status || 'published',
               stats: {
-                likes: article.likesCount || article.likes?.length || 0,
-                comments: article.commentsCount || article.comments?.length || 0,
-                views: article.viewsCount || 0,
+                likes: article.likes?.length || article.stats?.likes || 0,
+                comments: article.comments?.length || article.stats?.comments || 0,
+                views: article.viewsCount || article.stats?.views || 0,
               },
-              isLiked: article.isLiked || false,
-              isBookmarked: article.isBookmarked || false,
+              isLiked: isLiked,
+              isBookmarked: isBookmarked,
               isFeatured: false,
             };
           });
@@ -207,96 +226,101 @@ export default function PublicProfilePage() {
     if (userId) {
       fetchUserData();
     }
-  }, [userId, API_URL, userToken]);
-
-  const refreshProfileImage = () => {
-    setImageTimestamp(Date.now());
-  };
-
-  // Calcul des statistiques avec les articles formatés
-  const userStats = {
-    totalArticles: userArticles.length,
-    totalLikes: userArticles.reduce((sum, article) => sum + (article.stats?.likes || 0), 0),
-    totalComments: userArticles.reduce((sum, article) => sum + (article.stats?.comments || 0), 0),
-    totalViews: userArticles.reduce((sum, article) => sum + (article.stats?.views || 0), 0),
-  };
+  }, [userId, API_URL, currentUserId]);
 
   const handleLike = async (id: string) => {
-    if (!userToken) return;
+    const token = getToken();
+    if (!token) {
+      alert('Veuillez vous connecter pour liker un article');
+      return;
+    }
     
     try {
+      const article = userArticles.find(a => a.id === id);
+      if (!article) return;
+
+      const newIsLiked = !article.isLiked;
+      
+      // Optimistic update
+      setUserArticles(prev => prev.map(article => {
+        if (article.id === id) {
+          return {
+            ...article,
+            isLiked: newIsLiked,
+            stats: {
+              ...article.stats,
+              likes: article.stats.likes + (newIsLiked ? 1 : -1)
+            }
+          };
+        }
+        return article;
+      }));
+
       const response = await fetch(`${API_URL}/api/articles/${id}/like`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        
-        setUserArticles(prev => prev.map(article => {
-          if (article.id === id) {
-            return {
-              ...article,
-              isLiked: result.article.isLiked,
-              stats: {
-                ...article.stats,
-                likes: result.article.likesCount
-              }
-            };
-          }
-          return article;
-        }));
+      if (!response.ok) {
+        throw new Error('Erreur lors du like');
       }
+      
     } catch (err) {
-      console.error('❌ Erreur like:', err);
+      console.error('Erreur like:', err);
+      alert('Erreur lors du like');
+      window.location.reload();
     }
   };
 
   const handleBookmark = async (id: string) => {
-    if (!userToken) return;
+    const token = getToken();
+    if (!token) {
+      alert('Veuillez vous connecter pour sauvegarder un article');
+      return;
+    }
     
     try {
+      const article = userArticles.find(a => a.id === id);
+      if (!article) return;
+
+      const newIsBookmarked = !article.isBookmarked;
+      
+      setUserArticles(prev => prev.map(article => {
+        if (article.id === id) {
+          return {
+            ...article,
+            isBookmarked: newIsBookmarked
+          };
+        }
+        return article;
+      }));
+
       const response = await fetch(`${API_URL}/api/articles/${id}/bookmark`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userToken}`,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        
-        setUserArticles(prev => prev.map(article => {
-          if (article.id === id) {
-            return {
-              ...article,
-              isBookmarked: result.article.isBookmarked
-            };
-          }
-          return article;
-        }));
+      if (!response.ok) {
+        throw new Error('Erreur lors du bookmark');
       }
+      
     } catch (err) {
-      console.error('❌ Erreur bookmark:', err);
+      console.error('Erreur bookmark:', err);
+      alert('Erreur lors du bookmark');
+      window.location.reload();
     }
   };
 
   const handleShare = (id: string) => {
-    const article = userArticles.find(a => a.id === id);
-    if (!article) return;
-    
-    if (navigator.share) {
-      navigator.share({
-        title: article.title,
-        text: article.description,
-        url: `${window.location.origin}/articles/${id}`,
-      });
-    } else {
-      navigator.clipboard.writeText(`${window.location.origin}/articles/${id}`);
-      alert('Lien copié dans le presse-papier !');
-    }
+    const url = `${window.location.origin}/articles/${id}`;
+    navigator.clipboard.writeText(url);
+    alert('Lien copié !');
   };
 
   const formatDate = (dateString: string) => {
@@ -351,6 +375,14 @@ export default function PublicProfilePage() {
         instagram: extractUsername(user.instagram)
       }
     };
+  };
+
+  // Calcul des statistiques
+  const userStats = {
+    totalArticles: userArticles.length,
+    totalLikes: userArticles.reduce((sum, article) => sum + (article.stats?.likes || 0), 0),
+    totalComments: userArticles.reduce((sum, article) => sum + (article.stats?.comments || 0), 0),
+    totalViews: userArticles.reduce((sum, article) => sum + (article.stats?.views || 0), 0),
   };
 
   if (loading) {
@@ -441,13 +473,13 @@ export default function PublicProfilePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* ===== Colonne de gauche : Informations profil ===== */}
+          {/* Colonne de gauche : Informations profil */}
           <div className="space-y-6">
             <UserAboutCard user={formatUserForAbout(user)} />
             <UserStatsCard stats={userStats} />
           </div>
 
-          {/* ===== Colonne de droite : Contenu principal ===== */}
+          {/* Colonne de droite : Contenu principal */}
           <div className="lg:col-span-2">
             <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
               
@@ -483,14 +515,54 @@ export default function PublicProfilePage() {
                       {userArticles.map((article) => (
                         <ArticleCard
                           key={article.id}
-                          // ✅ UTILISER LES ARTICLES FORMATÉS
                           article={article}
                           onLike={handleLike}
                           onBookmark={handleBookmark}
                           onShare={handleShare}
-                          showActions={!!userToken}
+                          showActions={isAuthenticated}
                         />
                       ))}
+                      
+                      {/* Résumé des performances */}
+                      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
+                        <h4 className="font-semibold text-gray-800 dark:text-white/90 mb-4">
+                          Résumé des performances
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <div className="text-sm text-blue-600 dark:text-blue-400">Engagement moyen</div>
+                            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                              {userStats.totalArticles > 0 
+                                ? Math.round((userStats.totalLikes + userStats.totalComments) / userStats.totalArticles)
+                                : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <div className="text-sm text-green-600 dark:text-green-400">Vues/article</div>
+                            <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                              {userStats.totalArticles > 0 
+                                ? Math.round(userStats.totalViews / userStats.totalArticles)
+                                : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                            <div className="text-sm text-purple-600 dark:text-purple-400">Taux de likes</div>
+                            <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                              {userStats.totalViews > 0 
+                                ? Math.round((userStats.totalLikes / userStats.totalViews) * 100)
+                                : 0}%
+                            </div>
+                          </div>
+                          <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                            <div className="text-sm text-orange-600 dark:text-orange-400">Taux de commentaires</div>
+                            <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                              {userStats.totalViews > 0 
+                                ? Math.round((userStats.totalComments / userStats.totalViews) * 100)
+                                : 0}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <div className="py-12 text-center">
@@ -528,7 +600,7 @@ export default function PublicProfilePage() {
                             <div
                               key={article.id}
                               className="p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                              onClick={() => router.push(`/article/${article.id}`)}
+                              onClick={() => router.push(`/articles/${article.id}`)}
                             >
                               <h5 className="font-medium text-gray-800 dark:text-white mb-2 line-clamp-1">
                                 {article.title}
@@ -536,7 +608,7 @@ export default function PublicProfilePage() {
                               <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                                 <span>{formatDate(article.publishedAt)}</span>
                                 <span className="flex items-center gap-2">
-                                  <Heart size={12} />
+                                  <Heart size={12} className={article.isLiked ? 'text-red-500 fill-red-500' : ''} />
                                   <span>{article.stats?.likes || 0}</span>
                                   <Eye size={12} className="ml-2" />
                                   <span>{article.stats?.views || 0}</span>

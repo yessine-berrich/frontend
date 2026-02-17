@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal, Download, Printer, FileText, User, Edit, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Eye, Share2, Bookmark, MoreHorizontal, Download, Printer, FileText, User, Edit, Trash2, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ArticleDetailModal from '@/components/modals/ArticleDetailModal';
+import CreateArticleModal from '@/components/modals/CreateArticleModal';
+import ArticleHistoryModal from '../modals/ArticleHistoryModal';
 
 interface ArticleCardProps {
   article: {
@@ -40,6 +42,8 @@ interface ArticleCardProps {
   onShare?: (id: string) => void;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onArticleUpdated?: () => void; // ← callback après mise à jour
+  currentUserId?: number | string | null; 
   showActions?: boolean;
 }
 
@@ -50,31 +54,50 @@ export default function ArticleCard({
   onShare,
   onEdit,
   onDelete,
-  showActions = true 
+  onArticleUpdated,
+  showActions = true ,
+  currentUserId // ← AJOUTER CE PARAMÈTRE
 }: ArticleCardProps) {
+  // États
   const [isLiked, setIsLiked] = useState(article.isLiked || false);
   const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked || false);
   const [likesCount, setLikesCount] = useState(article.stats.likes);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  // Synchronisation avec les props
+  useEffect(() => {
+    setIsLiked(article.isLiked || false);
+    setIsBookmarked(article.isBookmarked || false);
+    setLikesCount(article.stats.likes);
+  }, [article.isLiked, article.isBookmarked, article.stats.likes]);
 
+  // Gestion du clic en dehors du menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Handlers
+
+const handleOpenHistory = () => {
+  setIsMenuOpen(false);
+  setIsHistoryModalOpen(true);
+};
+
   const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+    const newIsLiked = !isLiked;
+    setIsLiked(newIsLiked);
+    setLikesCount(prev => newIsLiked ? prev + 1 : prev - 1);
     onLike?.(article.id);
   };
 
@@ -91,21 +114,74 @@ export default function ArticleCard({
         text: article.description,
         url: `${window.location.origin}/articles/${article.id}`,
       });
+    } else {
+      navigator.clipboard.writeText(`${window.location.origin}/articles/${article.id}`);
+      alert('Lien copié !');
     }
   };
 
-  const handleOpenModal = () => {
-    setIsModalOpen(true);
+  const handleEditClick = () => {
+    setIsMenuOpen(false);
+    setIsEditModalOpen(true);
+    onEdit?.(article.id);
   };
 
-  const navigateToAuthorProfile = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleEditSuccess = () => {
+    setIsEditModalOpen(false);
+    onArticleUpdated?.();
+  };
+
+
+  const handleOpenModal = () => setIsModalOpen(true);
+
+const navigateToAuthorProfile = (e: React.MouseEvent) => {
+  e.stopPropagation();
+  
+  // Essayer d'abord de récupérer du localStorage
+  let currentUserId = localStorage.getItem('userId');
+  const authorId = article.author.id?.toString();
+  
+  // Si pas d'userId dans localStorage, essayer de l'extraire du token
+  if (!currentUserId) {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        const decoded = JSON.parse(jsonPayload);
+        currentUserId = decoded.sub || decoded.id || decoded.userId;
+        
+        if (currentUserId) {
+          // Stocker pour la prochaine fois
+          localStorage.setItem('userId', currentUserId.toString());
+        }
+      } catch (error) {
+        console.error('❌ Erreur décodage token:', error);
+      }
+    }
+  }
+  
+  console.log('🔍 Navigation vers profil:', {
+    currentUserId,
+    authorId,
+    isCurrentUser: currentUserId && authorId && currentUserId.toString() === authorId
+  });
+  
+  if (currentUserId && authorId && currentUserId.toString() === authorId) {
+    router.push('/profile');
+  } else {
     if (article.author.id) {
       router.push(`/profile/${article.author.id}`);
     } else {
       router.push(`/profile/${encodeURIComponent(article.author.name)}`);
     }
-  };
+  }
+};
+
 
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -115,15 +191,10 @@ export default function ArticleCard({
     const diffInDays = Math.floor(diffInHours / 24);
     const diffInYears = Math.floor(diffInDays / 365);
 
-    if (diffInYears > 0) {
-      return `il y a ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
-    } else if (diffInDays > 0) {
-      return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
-    } else if (diffInHours > 0) {
-      return `il y a ${diffInHours} heure${diffInHours > 1 ? 's' : ''}`;
-    } else {
-      return 'il y a quelques minutes';
-    }
+    if (diffInYears > 0) return `il y a ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
+    if (diffInDays > 0) return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
+    if (diffInHours > 0) return `il y a ${diffInHours} heure${diffInHours > 1 ? 's' : ''}`;
+    return 'il y a quelques minutes';
   };
 
   const getStatusBadge = (status: string) => {
@@ -153,155 +224,18 @@ export default function ArticleCard({
             <meta charset="UTF-8">
             <title>${article.title}</title>
             <style>
-              body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 40px;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 40px;
-                border-bottom: 2px solid #3b82f6;
-                padding-bottom: 20px;
-              }
-              .title {
-                font-size: 28px;
-                color: #1e40af;
-                margin-bottom: 10px;
-                font-weight: bold;
-              }
-              .meta {
-                color: #6b7280;
-                font-size: 14px;
-                margin-bottom: 20px;
-              }
-              .author-info {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-                margin-bottom: 10px;
-              }
-              .author-avatar {
-                width: 40px;
-                height: 40px;
-                background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-weight: bold;
-                font-size: 16px;
-              }
-              .author-name {
-                font-weight: 600;
-                color: #374151;
-              }
-              .description {
-                font-size: 16px;
-                color: #4b5563;
-                margin-bottom: 30px;
-                text-align: center;
-                font-style: italic;
-              }
-              .category-badge {
-                display: inline-block;
-                background-color: #dbeafe;
-                color: #1e40af;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: 500;
-                margin-bottom: 10px;
-              }
-              .content {
-                font-size: 15px;
-                margin-top: 30px;
-                white-space: pre-wrap;
-                line-height: 1.8;
-              }
-              .stats {
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-                margin-top: 40px;
-                padding-top: 20px;
-                border-top: 1px solid #e5e7eb;
-                font-size: 12px;
-                color: #6b7280;
-              }
-              .stat-item {
-                display: flex;
-                align-items: center;
-                gap: 5px;
-              }
-              .tags {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-                margin-top: 20px;
-                justify-content: center;
-              }
-              .tag {
-                color: #6b7280;
-                font-size: 12px;
-              }
-              .footer {
-                margin-top: 40px;
-                text-align: center;
-                font-size: 11px;
-                color: #9ca3af;
-                border-top: 1px solid #e5e7eb;
-                padding-top: 20px;
-              }
-              .generated-date {
-                margin-top: 10px;
-              }
+              body { font-family: 'Segoe UI', sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px; }
+              .title { font-size: 28px; color: #1e40af; font-weight: bold; }
+              .meta { color: #6b7280; font-size: 14px; }
+              .content { font-size: 15px; margin-top: 30px; white-space: pre-wrap; line-height: 1.8; }
+              .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 20px; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <div class="category-badge">${article.category.name}</div>
-              <h1 class="title">${article.title}</h1>
-              <p class="description">${article.description}</p>
-              
-              <div class="author-info">
-                <div class="author-avatar">${article.author.initials}</div>
-                <div>
-                  <div class="author-name">${article.author.name}</div>
-                  <div class="meta">${article.author.department} • ${getTimeAgo(article.publishedAt)}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="content">
-              ${article.content.replace(/\n/g, '<br>')}
-            </div>
-
-            <div class="tags">
-              ${article.tags.map(tag => `<span class="tag">${tag}</span>`).join(' • ')}
-            </div>
-
-            <div class="stats">
-              <div class="stat-item">👁️ ${article.stats.views} vues</div>
-              <div class="stat-item">❤️ ${article.stats.likes} likes</div>
-              <div class="stat-item">💬 ${article.stats.comments} commentaires</div>
-            </div>
-
-            <div class="footer">
-              <div>Exporté depuis KnowledgeHub</div>
-              <div class="generated-date">Généré le ${new Date().toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}</div>
-            </div>
+            <h1 class="title">${article.title}</h1>
+            <p class="meta">${article.author.name} · ${article.author.department} · ${getTimeAgo(article.publishedAt)}</p>
+            <div class="content">${article.content.replace(/\n/g, '<br>')}</div>
+            <div class="footer">Exporté depuis KnowledgeHub · ${new Date().toLocaleDateString('fr-FR')}</div>
           </body>
         </html>
       `;
@@ -310,8 +244,7 @@ export default function ArticleCard({
       if (printWindow) {
         printWindow.document.write(htmlContent);
         printWindow.document.close();
-        
-        printWindow.onload = function() {
+        printWindow.onload = () => {
           printWindow.print();
           setTimeout(() => {
             printWindow.close();
@@ -319,74 +252,24 @@ export default function ArticleCard({
           }, 1000);
         };
       } else {
-        downloadAsHTML(htmlContent);
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${article.title.replace(/[^a-z0-9]/gi, '_')}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsExporting(false);
       }
-    } catch (error) {
-      console.error('Erreur lors de l\'export PDF:', error);
+    } catch {
       setIsExporting(false);
-      downloadAsText();
     }
-  };
-
-  const downloadAsHTML = (htmlContent: string) => {
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${article.title.replace(/[^a-z0-9]/gi, '_')}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setIsExporting(false);
-  };
-
-  const downloadAsText = () => {
-    const content = `
-Titre: ${article.title}
-Auteur: ${article.author.name}
-Département: ${article.author.department}
-Date: ${new Date(article.publishedAt).toLocaleDateString('fr-FR')}
-Catégorie: ${article.category.name}
-Tags: ${article.tags.join(', ')}
-
-Description:
-${article.description}
-
-Contenu:
-${article.content}
-
-Statistiques:
-- Vues: ${article.stats.views}
-- Likes: ${article.stats.likes}
-- Commentaires: ${article.stats.comments}
-
-Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
-    `;
-    
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${article.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setIsExporting(false);
   };
 
   const getProfileImageUrl = (userData: any) => {
-    // if (!userData?.id) return "/images/user/owner.jpg";
-    
-    // Si l'utilisateur a une image de profil dans la base de données
     if (userData?.avatar) {
-      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
-      return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
+      return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${Date.now()}`;
     }
-    
-    // Image par défaut si pas d'image de profil
-    // return "/images/user/owner.jpg";
   };
 
   return (
@@ -459,7 +342,7 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
 
               {/* Dropdown Menu */}
               {isMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-10 animate-slideDown">
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-10">
                   <button
                     onClick={exportToPDF}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
@@ -480,28 +363,20 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
 
                   <button
                     onClick={() => {
-                      const printContent = `
-                        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
-                          <h1 style="color: #1e40af; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-                            ${article.title}
-                          </h1>
-                          <div style="color: #6b7280; margin: 15px 0;">
-                            <strong>Auteur:</strong> ${article.author.name}<br/>
-                            <strong>Date:</strong> ${new Date(article.publishedAt).toLocaleDateString('fr-FR')}<br/>
-                            <strong>Catégorie:</strong> ${article.category.name}
-                          </div>
-                          <div style="margin: 20px 0; color: #4b5563;">
-                            ${article.content.replace(/\n/g, '<br>')}
-                          </div>
-                          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af;">
-                            Imprimé depuis KnowledgeHub - ${new Date().toLocaleDateString('fr-FR')}
-                          </div>
-                        </div>
-                      `;
-                      
                       const printWindow = window.open('', '_blank');
                       if (printWindow) {
-                        printWindow.document.write(printContent);
+                        printWindow.document.write(`
+                          <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+                            <h1 style="color: #1e40af;">${article.title}</h1>
+                            <div style="color: #6b7280; margin: 15px 0;">
+                              <strong>Auteur:</strong> ${article.author.name}<br/>
+                              <strong>Date:</strong> ${new Date(article.publishedAt).toLocaleDateString('fr-FR')}
+                            </div>
+                            <div style="margin: 20px 0; color: #4b5563;">
+                              ${article.content.replace(/\n/g, '<br>')}
+                            </div>
+                          </div>
+                        `);
                         printWindow.document.close();
                         printWindow.focus();
                         setTimeout(() => {
@@ -521,31 +396,38 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
                     onClick={() => {
                       navigator.clipboard.writeText(`${window.location.origin}/articles/${article.id}`);
                       setIsMenuOpen(false);
-                      alert('Lien copié dans le presse-papier !');
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     Copier le lien
                   </button>
                   
+                  {/* Bouton Modifier - ouvre le modal */}
                   {onEdit && (
                     <button
-                      onClick={() => {
-                        onEdit?.(article.id);
-                        setIsMenuOpen(false);
-                      }}
+                      onClick={handleEditClick}
                       className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-2"
                     >
                       <Edit size={16} />
                       <span>Modifier</span>
                     </button>
                   )}
+                  <button
+                      onClick={handleOpenHistory}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <Clock size={16} />
+                      <span>Historique des versions</span>
+                  </button>
                   
+                  {/* Bouton Supprimer */}
                   {onDelete && (
                     <button
                       onClick={() => {
-                        onDelete?.(article.id);
-                        setIsMenuOpen(false);
+                        if (window.confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
+                          onDelete(article.id);
+                          setIsMenuOpen(false);
+                        }
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
                     >
@@ -672,7 +554,7 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
         </div>
       </article>
 
-      {/* Article Detail Modal */}
+      {/* Modal de lecture */}
       <ArticleDetailModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -680,6 +562,21 @@ Exporté le ${new Date().toLocaleDateString('fr-FR')} depuis KnowledgeHub
         onLike={handleLike}
         onBookmark={handleBookmark}
         onShare={handleShare}
+      />
+
+      {/* Modal d'édition */}
+      <CreateArticleModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={handleEditSuccess}
+        articleId={article.id}
+      />
+      // Après les autres modaux, ajoutez :
+      <ArticleHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        articleId={article.id}
+        articleTitle={article.title}
       />
     </>
   );
