@@ -1,6 +1,7 @@
 "use client";
 
 import AIAssistant from "@/components/ia-assistant/AIAssistant";
+import AIAssistantWithAPI from "@/components/ia-assistant/AIAssistantWithAPI";
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
@@ -35,7 +36,7 @@ export default function AdminLayout({
         {/* Page Content */}
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>
       </div>
-      <AIAssistant />
+      <AIAssistantWithAPI />
     </div>
   );
 }
