@@ -10,7 +10,7 @@ import ArticleCard from '@/components/article/ArticleCard';
 import EditProfileModalWithAPI from '@/components/modals/EditProfileModal';
 
 export default function CurrentUserProfilePageWithAPI() {
-  const [activeTab, setActiveTab] = useState<'articles' | 'drafts'>('articles');
+  const [activeTab, setActiveTab] = useState<'articles' | 'drafts' | 'rejected'>('articles');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [userArticles, setUserArticles] = useState<any[]>([]);
@@ -109,6 +109,7 @@ export default function CurrentUserProfilePageWithAPI() {
             likes: article.likes || [],
             bookmarks: article.bookmarks || [],
             comments: article.comments || [],
+            rejectionReason: article.rejectionReason || null, // Ajout pour les articles refusés
           };
         });
         
@@ -310,6 +311,43 @@ export default function CurrentUserProfilePageWithAPI() {
 
   const publishedArticles = userArticles.filter(a => a.status === 'published');
   const draftArticles = userArticles.filter(a => a.status === 'draft');
+  const rejectedArticles = userArticles.filter(a => a.status === 'rejected');
+
+  const getTabContent = () => {
+    switch (activeTab) {
+      case 'articles':
+        return publishedArticles;
+      case 'drafts':
+        return draftArticles;
+      case 'rejected':
+        return rejectedArticles;
+      default:
+        return [];
+    }
+  };
+
+  const getEmptyMessage = () => {
+    switch (activeTab) {
+      case 'articles':
+        return {
+          title: 'Aucun article publié',
+          message: 'Commencez à partager vos connaissances'
+        };
+      case 'drafts':
+        return {
+          title: 'Aucun brouillon',
+          message: 'Commencez à rédiger un nouvel article'
+        };
+      case 'rejected':
+        return {
+          title: 'Aucun article refusé',
+          message: 'Tous vos articles ont été approuvés'
+        };
+    }
+  };
+
+  const emptyState = getEmptyMessage();
+  const currentArticles = getTabContent();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -391,54 +429,73 @@ export default function CurrentUserProfilePageWithAPI() {
                   >
                     Brouillons ({draftArticles.length})
                   </button>
+                  <button
+                    onClick={() => setActiveTab('rejected')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                      activeTab === 'rejected'
+                        ? 'border-red-600 text-red-600 dark:text-red-400'
+                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    Refusés ({rejectedArticles.length})
+                  </button>
                 </div>
               </div>
 
               {/* Liste des articles */}
               <div className="space-y-6">
-                {(activeTab === 'articles' ? publishedArticles : draftArticles).length === 0 ? (
+                {currentArticles.length === 0 ? (
                   <div className="py-12 text-center">
                     <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                       <FileText className="text-gray-400 dark:text-gray-500" size={24} />
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      {activeTab === 'articles' ? 'Aucun article publié' : 'Aucun brouillon'}
+                      {emptyState.title}
                     </h3>
                     <p className="text-gray-500 dark:text-gray-400 mb-6">
-                      {activeTab === 'articles' 
-                        ? 'Commencez à partager vos connaissances'
-                        : 'Commencez à rédiger un nouvel article'}
+                      {emptyState.message}
                     </p>
-                    <button 
-                      onClick={() => window.location.href = '/articles/new'}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Créer un article
-                    </button>
+                    {(activeTab === 'articles' || activeTab === 'drafts') && (
+                      <button 
+                        onClick={() => window.location.href = '/articles/new'}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        Créer un article
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <>
-                    {(activeTab === 'articles' ? publishedArticles : draftArticles).map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        article={{
-                          ...article,
-                          author: {
-                            id: userData.id,
-                            name: `${userData.firstName} ${userData.lastName}`,
-                            initials: `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase(),
-                            department: userData.department || 'Membre',
-                            avatar: userData.profileImage,
-                          },
-                        }}
-                        onLike={handleLike}
-                        onBookmark={handleBookmark}
-                        onShare={handleShare}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onArticleUpdated={handleArticleUpdated}
-                        showActions={true}
-                      />
+                    {currentArticles.map((article) => (
+                      <div key={article.id} className="relative">
+                        {activeTab === 'rejected' && article.rejectionReason && (
+                          <div className="mb-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                              <span className="font-medium">Raison du refus :</span> {article.rejectionReason}
+                            </p>
+                          </div>
+                        )}
+                        <ArticleCard
+                          article={{
+                            ...article,
+                            author: {
+                              id: userData.id,
+                              name: `${userData.firstName} ${userData.lastName}`,
+                              initials: `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase(),
+                              department: userData.department || 'Membre',
+                              avatar: userData.profileImage,
+                            },
+                          }}
+                          onLike={handleLike}
+                          onBookmark={handleBookmark}
+                          onShare={handleShare}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onArticleUpdated={handleArticleUpdated}
+                          showActions={true}
+                          showHistory={true} 
+                        />
+                      </div>
                     ))}
 
                     {/* Résumé des performances (onglet publié seulement) */}

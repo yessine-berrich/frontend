@@ -29,15 +29,47 @@ export default function ArticlesPage() {
   
   const itemsPerPage = 6;
 
-  useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    const token = localStorage.getItem('auth_token');
-    
-    if (userId) setCurrentUserId(parseInt(userId));
-    if (token) setUserToken(token);
-    
-    fetchArticles();
-  }, []);
+// Dans ArticlesPage.tsx
+useEffect(() => {
+  const token = localStorage.getItem('auth_token');
+  let userId = localStorage.getItem('userId');
+  
+  // Si userId n'est pas dans localStorage, essayer de l'extraire du token
+  if (!userId && token) {
+    try {
+      // Décoder le token JWT (partie du milieu)
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const decoded = JSON.parse(jsonPayload);
+      userId = decoded.sub || decoded.id || decoded.userId;
+      
+      if (userId) {
+        // Stocker pour la prochaine fois
+        localStorage.setItem('userId', userId.toString());
+        console.log('✅ userId extrait du token:', userId);
+      }
+    } catch (error) {
+      console.error('❌ Erreur décodage token:', error);
+    }
+  }
+  
+  console.log('🔐 ArticlesPage - localStorage:', { 
+    userId, 
+    token: token ? 'présent' : 'absent' 
+  });
+  
+  if (userId) {
+    setCurrentUserId(parseInt(userId.toString()));
+  }
+  
+  if (token) setUserToken(token);
+  
+  fetchArticles();
+}, []);
 
   const fetchArticles = async () => {
     try {
@@ -69,17 +101,24 @@ export default function ArticlesPage() {
       const data = await response.json();
       
       console.log('✅ Articles reçus avec token:', token ? 'oui' : 'non');
-      if (data.length > 0) {
-        console.log('📊 Premier article:', {
-          id: data[0].id,
-          title: data[0].title,
-          isLiked: data[0].isLiked,
-          isBookmarked: data[0].isBookmarked,
-          likesCount: data[0].stats?.likes
+      
+      // ✅ FILTRER POUR GARDER UNIQUEMENT LES ARTICLES PUBLIÉS
+      const publishedArticles = data.filter((article: any) => article.status === 'published');
+      
+      console.log(`📊 ${publishedArticles.length} articles publiés sur ${data.length} total`);
+      
+      if (publishedArticles.length > 0) {
+        console.log('📊 Premier article publié:', {
+          id: publishedArticles[0].id,
+          title: publishedArticles[0].title,
+          status: publishedArticles[0].status,
+          isLiked: publishedArticles[0].isLiked,
+          isBookmarked: publishedArticles[0].isBookmarked,
+          likesCount: publishedArticles[0].stats?.likes
         });
       }
       
-      setArticles(data);
+      setArticles(publishedArticles);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
       console.error('❌ Erreur:', err);
@@ -269,7 +308,7 @@ export default function ArticlesPage() {
               <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-8 text-center">
                 <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Aucun article disponible
+                  Aucun article publié
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
                   Soyez le premier à partager votre savoir !

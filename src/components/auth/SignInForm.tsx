@@ -33,9 +33,29 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     if (response.message && !response.accessToken) {
       setError(response.message);
-      // Optionnel : on peut vider le mot de passe pour la sécurité
     } 
     else if (response.accessToken) {
+      // ✅ EXTRAIRE L'USERID DU TOKEN JWT
+      try {
+        // Décoder le token JWT (partie du milieu)
+        const token = response.accessToken;
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        const decoded = JSON.parse(jsonPayload);
+        const userId = decoded.sub || decoded.id;
+        
+        if (userId) {
+          localStorage.setItem('userId', userId.toString());
+          console.log('✅ userId extrait du token:', userId);
+        }
+      } catch (error) {
+        console.error('❌ Erreur décodage token:', error);
+      }
+      
       router.push("/home");
     }
   } catch (err: any) {

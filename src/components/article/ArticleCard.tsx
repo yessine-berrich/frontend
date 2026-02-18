@@ -45,6 +45,7 @@ interface ArticleCardProps {
   onArticleUpdated?: () => void; // ← callback après mise à jour
   currentUserId?: number | string | null; 
   showActions?: boolean;
+  showHistory?: boolean; 
 }
 
 export default function ArticleCard({ 
@@ -56,7 +57,8 @@ export default function ArticleCard({
   onDelete,
   onArticleUpdated,
   showActions = true ,
-  currentUserId // ← AJOUTER CE PARAMÈTRE
+  currentUserId ,// ← AJOUTER CE PARAMÈTRE
+  showHistory = false 
 }: ArticleCardProps) {
   // États
   const [isLiked, setIsLiked] = useState(article.isLiked || false);
@@ -412,13 +414,16 @@ const navigateToAuthorProfile = (e: React.MouseEvent) => {
                       <span>Modifier</span>
                     </button>
                   )}
-                  <button
+                 {/* Historique des versions - conditionné par showHistory */}
+                  {showHistory && (
+                    <button
                       onClick={handleOpenHistory}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
                     >
                       <Clock size={16} />
                       <span>Historique des versions</span>
-                  </button>
+                    </button>
+                  )}
                   
                   {/* Bouton Supprimer */}
                   {onDelete && (
@@ -571,7 +576,6 @@ const navigateToAuthorProfile = (e: React.MouseEvent) => {
         onSuccess={handleEditSuccess}
         articleId={article.id}
       />
-      // Après les autres modaux, ajoutez :
       <ArticleHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
