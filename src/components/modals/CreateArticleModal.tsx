@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import MarkdownEditor from '../markdoun-editor/MarkdownEditor';
+import MarkdownEditor, { MarkdownEditorRef } from '../markdoun-editor/MarkdownEditor';
 import TagsSelector from '../tags/TagsSelector';
 import { articleService } from '../../../services/article.service';
 import type { UpdateArticleDto } from '../../../services/article.service';
@@ -58,6 +58,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess, article
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isLoadingArticle, setIsLoadingArticle] = useState(false);
   const [originalArticle, setOriginalArticle] = useState<Article | null>(null);
+  const markdownEditorRef = useRef<MarkdownEditorRef>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -249,66 +250,106 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess, article
 
     return { ...dto, hasChanges } as any;
   };
+const insertMarkdown = (type: string) => {
+  console.log('Insert markdown called:', type);
+  
+  // Utiliser la référence de l'éditeur
+  const textarea = markdownEditorRef.current?.textarea;
+  
+  if (!textarea) {
+    console.log('❌ Textarea ref is null');
+    return;
+  }
 
-  const insertMarkdown = (type: string) => {
-    if (!textareaRef.current) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selectedText = content.substring(start, end);
+  let newText = content;
+  let newCursorPos = start;
 
-    const textarea = textareaRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = content.substring(start, end);
-    let newText = content;
+  switch (type) {
+    case 'heading1':
+      newText = content.substring(0, start) + `# ${selectedText || 'Titre 1'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 3 : 9);
+      break;
+    case 'heading2':
+      newText = content.substring(0, start) + `## ${selectedText || 'Titre 2'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 4 : 10);
+      break;
+    case 'heading3':
+      newText = content.substring(0, start) + `### ${selectedText || 'Titre 3'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 5 : 11);
+      break;
+    case 'bold':
+      newText = content.substring(0, start) + `**${selectedText || 'texte en gras'}**` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 4 : 17);
+      break;
+    case 'italic':
+      newText = content.substring(0, start) + `*${selectedText || 'texte en italique'}*` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 2 : 19);
+      break;
+    case 'code':
+      newText = content.substring(0, start) + `\`${selectedText || 'code'}\`` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 2 : 6);
+      break;
+    case 'codeblock':
+      const language = prompt('Langage du code :', 'javascript') || '';
+      newText = content.substring(0, start) + `\`\`\`${language}\n${selectedText || '// Votre code ici'}\n\`\`\`\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + language.length + 8 : language.length + 25);
+      break;
+    case 'list':
+      newText = content.substring(0, start) + `- ${selectedText || 'élément de liste'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 2 : 18);
+      break;
+    case 'orderedlist':
+      newText = content.substring(0, start) + `1. ${selectedText || 'élément numéroté'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 3 : 20);
+      break;
+    case 'checkbox':
+      newText = content.substring(0, start) + `- [ ] ${selectedText || 'tâche à faire'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 6 : 19);
+      break;
+    case 'quote':
+      newText = content.substring(0, start) + `> ${selectedText || 'Citation'}\n` + content.substring(end);
+      newCursorPos = start + (selectedText ? selectedText.length + 2 : 10);
+      break;
+    case 'link':
+      const url = prompt('URL du lien :', 'https://');
+      if (url) {
+        newText = content.substring(0, start) + `[${selectedText || 'texte du lien'}](${url})` + content.substring(end);
+        newCursorPos = start + (selectedText ? selectedText.length + url.length + 4 : url.length + 15);
+      } else {
+        return;
+      }
+      break;
+    case 'table':
+      newText = content.substring(0, start) + 
+        '\n| Colonne 1 | Colonne 2 | Colonne 3 |\n' +
+        '|-----------|-----------|-----------|\n' +
+        '| Cellule 1 | Cellule 2 | Cellule 3 |\n' +
+        '| Cellule 4 | Cellule 5 | Cellule 6 |\n' + content.substring(end);
+      newCursorPos = start + 15;
+      break;
+    case 'hr':
+      newText = content.substring(0, start) + `\n---\n` + content.substring(end);
+      newCursorPos = start + 5;
+      break;
+    default:
+      return;
+  }
 
-    switch (type) {
-      case 'heading1':
-        newText = content.substring(0, start) + `# ${selectedText || 'Titre 1'}\n` + content.substring(end);
-        break;
-      case 'heading2':
-        newText = content.substring(0, start) + `## ${selectedText || 'Titre 2'}\n` + content.substring(end);
-        break;
-      case 'heading3':
-        newText = content.substring(0, start) + `### ${selectedText || 'Titre 3'}\n` + content.substring(end);
-        break;
-      case 'bold':
-        newText = content.substring(0, start) + `**${selectedText || 'texte en gras'}**` + content.substring(end);
-        break;
-      case 'italic':
-        newText = content.substring(0, start) + `*${selectedText || 'texte en italique'}*` + content.substring(end);
-        break;
-      case 'code':
-        newText = content.substring(0, start) + `\`${selectedText || 'code'}\`` + content.substring(end);
-        break;
-      case 'codeblock':
-        const language = prompt('Langage du code :', 'javascript');
-        newText = content.substring(0, start) + `\`\`\`${language || ''}\n${selectedText || '// Votre code ici'}\n\`\`\`\n` + content.substring(end);
-        break;
-      case 'list':
-        newText = content.substring(0, start) + `\n- ${selectedText || 'élément de liste'}\n` + content.substring(end);
-        break;
-      case 'orderedlist':
-        newText = content.substring(0, start) + `\n1. ${selectedText || 'élément numéroté'}\n` + content.substring(end);
-        break;
-      case 'quote':
-        newText = content.substring(0, start) + `> ${selectedText || 'Citation'}\n` + content.substring(end);
-        break;
-      case 'link':
-        const url = prompt('URL du lien :', 'https://');
-        if (url) {
-          newText = content.substring(0, start) + `[${selectedText || 'texte du lien'}](${url})` + content.substring(end);
-        }
-        break;
-      case 'hr':
-        newText = content.substring(0, start) + `\n---\n` + content.substring(end);
-        break;
+  console.log('✅ Updating content');
+  setContent(newText);
+  
+  // Restaurer la position du curseur après la mise à jour
+  setTimeout(() => {
+    const updatedTextarea = markdownEditorRef.current?.textarea;
+    if (updatedTextarea) {
+      updatedTextarea.focus();
+      updatedTextarea.setSelectionRange(newCursorPos, newCursorPos);
     }
-
-    setContent(newText);
-    setTimeout(() => {
-      textarea.focus();
-      const newPosition = start + newText.length - content.length;
-      textarea.setSelectionRange(newPosition, newPosition);
-    }, 0);
-  };
+  }, 0);
+};
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -422,6 +463,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess, article
           content,
           categoryId: category as number,
           status: 'draft',
+          tagIds: selectedTags,
         };
         
         const savedArticle = await articleService.create(createDto);
@@ -512,6 +554,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess, article
           content,
           categoryId: category as number,
           status: 'pending',
+          tagIds: selectedTags,
         };
         
         const submittedArticle = await articleService.create(createDto);
@@ -671,6 +714,7 @@ export default function CreateArticleModal({ isOpen, onClose, onSuccess, article
 
                 {/* Markdown Editor */}
                 <MarkdownEditor
+                ref={markdownEditorRef} 
                   content={content}
                   setContent={setContent}
                   isSubmitting={isSubmitting}

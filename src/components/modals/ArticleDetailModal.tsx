@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Heart, Eye, Share2, Bookmark } from 'lucide-react';
 import MarkdownPreview from '../markdoun-editor/MarkdownPreview';
 import CommentsSection from '../comments/commentsSection';
+import Image from 'next/image';
 
 interface Article {
   id: string;
@@ -33,12 +34,13 @@ interface Article {
   };
   isLiked?: boolean;
   isBookmarked?: boolean;
+  scrollToCommentId?: number;
 }
 
 interface ArticleDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  article: Article;
+  article: Article | null;
   currentUserId?: number;
   userToken?: string;
   onLike?: () => void;
@@ -54,9 +56,33 @@ export default function ArticleDetailModal({
   onBookmark,
   onShare,
 }: ArticleDetailModalProps) {
-  const [isLiked, setIsLiked] = useState(article.isLiked || false);
-  const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked || false);
-  const [likesCount, setLikesCount] = useState(article.stats.likes);
+  const [isLiked, setIsLiked] = useState(article?.isLiked || false);
+  const [isBookmarked, setIsBookmarked] = useState(article?.isBookmarked || false);
+  const [likesCount, setLikesCount] = useState(article?.stats?.likes || 0);
+
+  useEffect(() => {
+    if (article) {
+      setIsLiked(article.isLiked || false);
+      setIsBookmarked(article.isBookmarked || false);
+      setLikesCount(article.stats?.likes || 0);
+    }
+  }, [article]);
+
+  // Scroll to comment if needed
+  useEffect(() => {
+    if (isOpen && article?.scrollToCommentId) {
+      setTimeout(() => {
+        const commentElement = document.getElementById(`comment-${article.scrollToCommentId}`);
+        if (commentElement) {
+          commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          commentElement.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20');
+          setTimeout(() => {
+            commentElement.classList.remove('bg-yellow-50', 'dark:bg-yellow-900/20');
+          }, 2000);
+        }
+      }, 300);
+    }
+  }, [isOpen, article]);
 
   // Close on Escape
   useEffect(() => {
@@ -68,17 +94,20 @@ export default function ArticleDetailModal({
   }, [isOpen, onClose]);
 
   const handleLike = () => {
+    if (!article) return;
     setIsLiked(!isLiked);
     setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
     onLike?.();
   };
 
   const handleBookmark = () => {
+    if (!article) return;
     setIsBookmarked(!isBookmarked);
     onBookmark?.();
   };
 
   const handleShare = () => {
+    if (!article) return;
     onShare?.();
     if (navigator.share) {
       navigator.share({
@@ -86,6 +115,9 @@ export default function ArticleDetailModal({
         text: article.description,
         url: window.location.href,
       });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Lien copié !');
     }
   };
 
@@ -93,19 +125,15 @@ export default function ArticleDetailModal({
     const date = new Date(dateString);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
-    const diffInYears = Math.floor(diffInDays / 365);
+    const minutes = Math.floor(diffInMs / 60000);
 
-    if (diffInYears > 0) {
-      return `il y a ${diffInYears} an${diffInYears > 1 ? 's' : ''}`;
-    } else if (diffInDays > 0) {
-      return `il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
-    } else if (diffInHours > 0) {
-      return `il y a ${diffInHours} heure${diffInHours > 1 ? 's' : ''}`;
-    } else {
-      return 'il y a quelques minutes';
-    }
+    if (minutes < 1) return "à l'instant";
+    if (minutes < 60) return `il y a ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   };
 
   const getStatusBadge = (status: string) => {
@@ -121,22 +149,24 @@ export default function ArticleDetailModal({
     }
   };
 
-  const statusBadge = getStatusBadge(article.status);
-
-  if (!isOpen) return null;
-
   const getProfileImageUrl = (userData: any) => {
-    // if (!userData?.id) return "/images/user/owner.jpg";
+    if (!userData?.id) return "/images/user/profile.jpg";
     
-    // Si l'utilisateur a une image de profil dans la base de données
-    if (userData?.avatar) {
-      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+    const avatarUrl = userData.avatar || userData.profileImage;
+    
+    if (avatarUrl) {
+      if (avatarUrl.startsWith('http')) {
+        return avatarUrl;
+      }
       return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
     }
     
-    // Image par défaut si pas d'image de profil
-    // return "/images/user/owner.jpg";
+    return "/images/user/profile.jpg";
   };
+
+  if (!isOpen || !article) return null;
+
+  const statusBadge = getStatusBadge(article.status);
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
@@ -152,15 +182,20 @@ export default function ArticleDetailModal({
         <div className="flex items-start gap-4 p-6 border-b border-gray-200 dark:border-gray-800">
           {/* Author Info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
+            <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-blue-600 to-blue-700">
               {article.author.avatar ? (
                 <img
                   src={getProfileImageUrl(article.author)}
                   alt={article.author.name}
-                  className="w-full h-full rounded-full object-cover"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = "/images/user/profile.jpg";
+                  }}
                 />
               ) : (
-                article.author.initials
+                <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">
+                  {article.author.initials}
+                </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -187,7 +222,6 @@ export default function ArticleDetailModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* Article Content */}
           <div className="p-6 space-y-6">
             {/* Category & Featured & Status */}
             <div className="flex items-center gap-2">
@@ -211,11 +245,6 @@ export default function ArticleDetailModal({
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               {article.title}
             </h1>
-
-            {/* Description */}
-            <p className="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
-              {article.description}
-            </p>
 
             {/* Article Content */}
             <div className="prose dark:prose-invert max-w-none">
@@ -250,8 +279,7 @@ export default function ArticleDetailModal({
           </div>
 
           {/* Comments Section */}
-          <CommentsSection articleId={parseInt(article.id)}
-          />
+          <CommentsSection articleId={parseInt(article.id)} />
         </div>
 
         {/* Footer - Actions */}
@@ -267,7 +295,7 @@ export default function ArticleDetailModal({
                 <Heart
                   size={20}
                   className={`transition-all ${
-                    isLiked ? 'fill-red-500 text-red-500 animate-pulse' : 'group-hover/like:scale-110'
+                    isLiked ? 'fill-red-500 text-red-500' : 'group-hover/like:scale-110'
                   }`}
                 />
                 <span className="text-sm font-medium">{likesCount}</span>
@@ -305,67 +333,6 @@ export default function ArticleDetailModal({
           </div>
         </div>
       </div>
-
-      {/* Styles */}
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        .animate-slideUp {
-          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f5f9;
-          border-radius: 10px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
-        }
-
-        .dark .custom-scrollbar::-webkit-scrollbar-track {
-          background: #1e293b;
-        }
-
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #475569;
-        }
-
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #64748b;
-        }
-      `}</style>
     </div>
   );
 }

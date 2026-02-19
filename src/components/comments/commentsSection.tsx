@@ -152,34 +152,99 @@ export default function CommentsSection({ articleId }: CommentsSectionProps) {
   };
 
   // Liker/Unliker un commentaire
-  const handleLike = async (commentId: number) => {
-    if (!currentUserId) {
-      alert('Connectez-vous pour liker');
-      return;
-    }
+// Dans CommentsSection.tsx - Version simplifiée et efficace
 
-    const token = localStorage.getItem('auth_token');
-    try {
-      const response = await fetch(`http://localhost:3000/api/comments/${commentId}/like`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}` 
-        },
+const handleLike = async (commentId: number) => {
+  if (!currentUserId) {
+    alert('Connectez-vous pour liker');
+    return;
+  }
+
+  // ✅ 1. Mise à jour OPTIMISTE immédiate (sans attendre le serveur)
+  setComments(prevComments => {
+    const updateLikes = (comments: Comment[]): Comment[] => {
+      return comments.map(comment => {
+        if (comment.id === commentId) {
+          // Inverser l'état localement
+          const newIsLiked = !comment.isLiked;
+          console.log('🎯 Mise à jour locale:', { 
+            id: comment.id,
+            avant: comment.isLiked, 
+            après: newIsLiked,
+            likesAvant: comment.likes,
+            likesAprès: newIsLiked ? comment.likes + 1 : comment.likes - 1
+          });
+          
+          return {
+            ...comment,  // CRÉER UN NOUVEL OBJET
+            isLiked: newIsLiked,
+            likes: newIsLiked ? comment.likes + 1 : comment.likes - 1
+          };
+        }
+        if (comment.replies) {
+          return {
+            ...comment,
+            replies: updateLikes(comment.replies)
+          };
+        }
+        return comment;
       });
-      
-      if (!response.ok) throw new Error('Erreur lors du like');
-      
-      // Mise à jour OPTIMISTE
+    };
+    
+    return updateLikes(prevComments);
+  });
+
+  // ✅ 2. Envoyer la requête au serveur en arrière-plan
+  const token = localStorage.getItem('auth_token');
+  try {
+    const response = await fetch(`http://localhost:3000/api/comments/${commentId}/like`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+    
+    if (!response.ok) {
+      // En cas d'erreur, on recharge depuis le serveur
+      console.error('Erreur serveur, rechargement...');
+      await fetchComments();
+    } else {
       const result = await response.json();
+      console.log('✅ Synchronisation réussie:', result);
       
-      setComments(prevComments => 
-        updateCommentLikes(prevComments, commentId, result.likes, result.isLiked)
-      );
-      
-    } catch (err) {
-      console.error(err);
+      // Optionnel: vérifier la cohérence
+      setComments(prevComments => {
+        const verifyLikes = (comments: Comment[]): Comment[] => {
+          return comments.map(comment => {
+            if (comment.id === commentId) {
+              // Si le serveur dit que c'est différent, corriger
+              if (comment.isLiked !== result.isLiked) {
+                console.warn('⚠️ Correction incohérence');
+                return {
+                  ...comment,
+                  isLiked: result.isLiked,
+                  likes: result.likes
+                };
+              }
+            }
+            if (comment.replies) {
+              return {
+                ...comment,
+                replies: verifyLikes(comment.replies)
+              };
+            }
+            return comment;
+          });
+        };
+        return verifyLikes(prevComments);
+      });
     }
-  };
+  } catch (err) {
+    console.error('❌ Erreur réseau, rechargement...', err);
+    await fetchComments();
+  }
+};
 
   // Fonction utilitaire pour mettre à jour les likes récursivement
   const updateCommentLikes = (comments: Comment[], commentId: number, likes: number, isLiked: boolean): Comment[] => {

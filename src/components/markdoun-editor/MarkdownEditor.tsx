@@ -1,7 +1,7 @@
 // components/markdown-editor/MarkdownEditor.tsx
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   Bold,
   Italic,
@@ -24,6 +24,10 @@ import {
 } from 'lucide-react';
 import MarkdownPreview from './MarkdownPreview';
 
+// Définir le type pour la référence exposée
+export interface MarkdownEditorRef {
+  textarea: HTMLTextAreaElement | null;
+}
 
 interface MarkdownEditorProps {
   content: string;
@@ -32,13 +36,14 @@ interface MarkdownEditorProps {
   isUploadingImage: boolean;
   uploadProgress: number;
   fileInputRef: React.RefObject<HTMLInputElement>;
-  insertMarkdown: (type: string, value?: string) => void;
+  insertMarkdown: (type: string) => void;
   handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   showPreview: boolean;
   setShowPreview: (show: boolean) => void;
 }
 
-export default function MarkdownEditor({
+// Utiliser forwardRef pour exposer la référence
+const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(({
   content,
   setContent,
   isSubmitting,
@@ -49,8 +54,24 @@ export default function MarkdownEditor({
   handleImageUpload,
   showPreview,
   setShowPreview
-}: MarkdownEditorProps) {
+}, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Exposer la référence au parent
+  useImperativeHandle(ref, () => ({
+    textarea: textareaRef.current
+  }));
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      console.log('✅ Textarea ref is ready in child');
+    }
+  }, []);
+
+  const handleToolbarClick = (type: string) => {
+    console.log('🎯 Toolbar clicked:', type);
+    insertMarkdown(type);
+  };
 
   return (
     <div className="mb-6">
@@ -89,7 +110,7 @@ export default function MarkdownEditor({
           <div className="flex flex-wrap items-center gap-1 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t-lg">
             <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
               <button 
-                onClick={() => insertMarkdown('heading1')}
+                onClick={() => handleToolbarClick('heading1')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Titre 1 (Ctrl+1)"
@@ -97,7 +118,7 @@ export default function MarkdownEditor({
                 <Heading1 size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('heading2')}
+                onClick={() => handleToolbarClick('heading2')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Titre 2 (Ctrl+2)"
@@ -105,7 +126,7 @@ export default function MarkdownEditor({
                 <Heading2 size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('heading3')}
+                onClick={() => handleToolbarClick('heading3')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Titre 3 (Ctrl+3)"
@@ -116,7 +137,7 @@ export default function MarkdownEditor({
 
             <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
               <button 
-                onClick={() => insertMarkdown('bold')}
+                onClick={() => handleToolbarClick('bold')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Gras (Ctrl+B)"
@@ -124,7 +145,7 @@ export default function MarkdownEditor({
                 <Bold size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('italic')}
+                onClick={() => handleToolbarClick('italic')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Italique (Ctrl+I)"
@@ -135,7 +156,7 @@ export default function MarkdownEditor({
 
             <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
               <button 
-                onClick={() => insertMarkdown('list')}
+                onClick={() => handleToolbarClick('list')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Liste à puces"
@@ -143,7 +164,7 @@ export default function MarkdownEditor({
                 <List size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('orderedlist')}
+                onClick={() => handleToolbarClick('orderedlist')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Liste numérotée"
@@ -151,7 +172,7 @@ export default function MarkdownEditor({
                 <ListOrdered size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('checkbox')}
+                onClick={() => handleToolbarClick('checkbox')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Case à cocher"
@@ -162,7 +183,7 @@ export default function MarkdownEditor({
 
             <div className="flex items-center gap-1 mr-2 border-r border-gray-300 dark:border-gray-700 pr-2">
               <button 
-                onClick={() => insertMarkdown('code')}
+                onClick={() => handleToolbarClick('code')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Code inline"
@@ -170,7 +191,7 @@ export default function MarkdownEditor({
                 <Code size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('codeblock')}
+                onClick={() => handleToolbarClick('codeblock')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Bloc de code"
@@ -204,7 +225,7 @@ export default function MarkdownEditor({
                 )}
               </button>
               <button 
-                onClick={() => insertMarkdown('link')}
+                onClick={() => handleToolbarClick('link')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Insérer un lien (Ctrl+K)"
@@ -215,7 +236,7 @@ export default function MarkdownEditor({
 
             <div className="flex items-center gap-1">
               <button 
-                onClick={() => insertMarkdown('quote')}
+                onClick={() => handleToolbarClick('quote')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Citation"
@@ -223,7 +244,7 @@ export default function MarkdownEditor({
                 <Quote size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('table')}
+                onClick={() => handleToolbarClick('table')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Tableau"
@@ -231,7 +252,7 @@ export default function MarkdownEditor({
                 <Table size={18} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button 
-                onClick={() => insertMarkdown('hr')}
+                onClick={() => handleToolbarClick('hr')}
                 disabled={isSubmitting}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50" 
                 title="Ligne horizontale"
@@ -272,4 +293,7 @@ export default function MarkdownEditor({
       )}
     </div>
   );
-}
+});
+
+MarkdownEditor.displayName = 'MarkdownEditor';
+export default MarkdownEditor;

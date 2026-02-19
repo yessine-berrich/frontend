@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import Image from "next/image";
 import Link from "next/link";
@@ -7,8 +7,9 @@ import { io, Socket } from "socket.io-client";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { fetchCurrentUser } from "../../../services/auth.service";
+import ArticleDetailModal from '@/components/modals/ArticleDetailModal';
 
-// Types (à adapter selon ton backend)
+// Types
 interface Notification {
   id: number;
   type: "mention" | "reply" | "new_comment";
@@ -19,6 +20,8 @@ interface Notification {
     id: number;
     name: string;
     avatar?: string;
+    firstName?: string;
+    lastName?: string;
   };
   data?: {
     commentId?: number;
@@ -33,29 +36,25 @@ export default function NotificationDropdown() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
-  // Récupère le token et l'userId depuis localStorage (adapte selon ton système d'auth)
   const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "";
   const userId = typeof window !== "undefined" ? localStorage.getItem("userId") || "1" : "1";
 
   useEffect(() => {
-      fetchCurrentUser()
-        .then((userData) => {
-          setUser(userData);
-          setLoading(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching user:", error);
-          setLoading(false);
-        });
-    }, []);
+    fetchCurrentUser()
+      .then(() => setLoading(false))
+      .catch((error) => {
+        console.error("Error fetching user:", error);
+        setLoading(false);
+      });
+  }, []);
 
-  // Charger les notifications initiales (GET /api/notifications)
+  // Charger les notifications initiales
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!token) {
-        console.warn("Pas de token → notifications non chargées");
         setLoading(false);
         return;
       }
@@ -68,13 +67,10 @@ export default function NotificationDropdown() {
               "Authorization": `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            credentials: "include", // si tu utilises cookies/session
           }
         );
 
-        if (!res.ok) {
-          throw new Error(`Erreur HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
 
         const data = await res.json();
         setNotifications(data || []);
@@ -96,25 +92,16 @@ export default function NotificationDropdown() {
 
     const newSocket = io("http://localhost:3000/notifications", {
       query: { userId: userId.toString() },
-      auth: { token }, // ← passe le JWT pour authentification côté gateway
+      auth: { token },
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       transports: ["websocket", "polling"],
     });
 
-    newSocket.on("connect", () => {
-      console.log("WebSocket connecté → user:", userId);
-    });
-
     newSocket.on("new_notification", (newNotif: Notification) => {
-      console.log("Nouvelle notification reçue:", newNotif);
       setNotifications((prev) => [newNotif, ...prev]);
       setUnreadCount((prev) => prev + 1);
-    });
-
-    newSocket.on("connect_error", (err) => {
-      console.error("Erreur connexion WebSocket:", err.message);
     });
 
     setSocket(newSocket);
@@ -124,7 +111,6 @@ export default function NotificationDropdown() {
     };
   }, [userId, token]);
 
-  // Ouvrir le dropdown → marquer tout comme lu
   const handleOpen = async () => {
     setIsOpen(true);
 
@@ -142,8 +128,6 @@ export default function NotificationDropdown() {
       if (res.ok) {
         setUnreadCount(0);
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      } else {
-        console.error("Erreur mark-all-read:", res.status);
       }
     } catch (err) {
       console.error("Erreur mark all read:", err);
@@ -152,7 +136,103 @@ export default function NotificationDropdown() {
 
   const closeDropdown = () => setIsOpen(false);
 
-  // Format date relative
+// Dans NotificationDropdown.tsx
+const handleOpenArticleModal = async (articleId: number, commentId?: number) => {
+  try {
+    const token = localStorage.getItem('auth_token');
+    
+    const response = await fetch(`http://localhost:3000/api/articles/${articleId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP ${response.status}`);
+    }
+
+    const articleData = await response.json();
+    
+    // ✅ Formater correctement toutes les données
+    const formattedArticle = {
+      id: articleData.id,
+      title: articleData.title,
+      content: articleData.content,
+      description: articleData.description || articleData.content?.substring(0, 150) + '...' || '',
+      
+      // ✅ S'assurer que author est un objet avec des propriétés scalaires
+      author: {
+        id: articleData.author?.id || 0,
+        name: typeof articleData.author?.name === 'string' 
+          ? articleData.author.name 
+          : `${articleData.author?.firstName || ''} ${articleData.author?.lastName || ''}`.trim() || 'Utilisateur',
+        initials: ((articleData.author?.firstName?.charAt(0) || '') + 
+                  (articleData.author?.lastName?.charAt(0) || '')).toUpperCase() || 'U',
+        department: typeof articleData.author?.department === 'string'
+          ? articleData.author.department
+          : articleData.author?.role || 'Membre',
+        avatar: articleData.author?.avatar || null,
+      },
+      
+      // ✅ S'assurer que category est un objet avec des propriétés scalaires
+      category: {
+        id: articleData.category?.id || 0,
+        name: typeof articleData.category?.name === 'string' 
+          ? articleData.category.name 
+          : 'Général',
+        slug: typeof articleData.category?.slug === 'string'
+          ? articleData.category.slug
+          : 'general',
+      },
+      
+      // ✅ S'assurer que tags est un tableau de strings
+      tags: Array.isArray(articleData.tags) 
+        ? articleData.tags.map(tag => typeof tag === 'string' ? tag : tag.name || String(tag))
+        : [],
+      
+      isFeatured: false,
+      publishedAt: articleData.createdAt || articleData.publishedAt || new Date().toISOString(),
+      updatedAt: articleData.updatedAt || null,
+      status: articleData.status || 'published',
+      
+      // ✅ S'assurer que stats a des nombres
+      stats: {
+        likes: typeof articleData.stats?.likes === 'number' 
+          ? articleData.stats.likes 
+          : articleData.likes?.length || 0,
+        comments: typeof articleData.stats?.comments === 'number'
+          ? articleData.stats.comments
+          : articleData.comments?.length || 0,
+        views: typeof articleData.stats?.views === 'number'
+          ? articleData.stats.views
+          : articleData.viewsCount || 0,
+      },
+      
+      isLiked: !!articleData.isLiked,
+      isBookmarked: !!articleData.isBookmarked,
+    };
+    
+    if (commentId) {
+      formattedArticle.scrollToCommentId = commentId;
+    }
+    
+    // ✅ Log pour vérifier le formatage
+    console.log('📦 Article formaté:', {
+      author: formattedArticle.author,
+      category: formattedArticle.category,
+      tags: formattedArticle.tags,
+    });
+    
+    setSelectedArticle(formattedArticle);
+    setIsArticleModalOpen(true);
+    closeDropdown();
+  } catch (error) {
+    console.error('❌ Erreur chargement article:', error);
+    alert("Impossible de charger l'article");
+  }
+};
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const diffMs = Date.now() - date.getTime();
@@ -165,17 +245,11 @@ export default function NotificationDropdown() {
     return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   };
 
-  // URL de base pour les images via votre API NestJS
   const getProfileImageUrl = (userData: any) => {
     if (!userData?.id) return "/images/user/profile.jpg";
-    
-    // Si l'utilisateur a une image de profil dans la base de données
-    if (userData?.profileImage) {
-      // On ajoute un timestamp (?t=...) pour forcer le navigateur à ignorer le cache après un update
+    if (userData?.profileImage || userData?.avatar) {
       return `http://localhost:3000/api/users/profile-image/${userData.id}?t=${new Date().getTime()}`;
     }
-    
-    // Image par défaut si pas d'image de profil
     return "/images/user/profile.jpg";
   };
 
@@ -192,13 +266,7 @@ export default function NotificationDropdown() {
           </span>
         )}
 
-        <svg
-          className="fill-current"
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          xmlns="http://www.w3.org/2000/svg"
-        >
+        <svg className="fill-current" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
           <path
             fillRule="evenodd"
             clipRule="evenodd"
@@ -217,17 +285,8 @@ export default function NotificationDropdown() {
           <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             Notifications
           </h5>
-          <button
-            onClick={closeDropdown}
-            className="text-gray-500 transition dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-          >
-            <svg
-              className="fill-current"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
+          <button onClick={closeDropdown} className="text-gray-500 transition dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+            <svg className="fill-current" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path
                 fillRule="evenodd"
                 clipRule="evenodd"
@@ -244,9 +303,7 @@ export default function NotificationDropdown() {
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-center">
-            <p className="text-gray-500 dark:text-gray-400">
-              Aucune notification pour le moment
-            </p>
+            <p className="text-gray-500 dark:text-gray-400">Aucune notification</p>
           </div>
         ) : (
           <ul className="flex flex-col h-auto overflow-y-auto custom-scrollbar">
@@ -260,13 +317,6 @@ export default function NotificationDropdown() {
                   }`}
                 >
                   <span className="relative block w-10 h-10 rounded-full overflow-hidden">
-                    {/* <Image
-                      width={40}
-                      height={40}
-                      src={notif.sender?.avatar || "/images/user/default-avatar.jpg"}
-                      alt={notif.sender?.name || "Utilisateur"}
-                      className="object-cover"
-                    /> */}
                     <Image
                       width={40}
                       height={40}
@@ -286,28 +336,32 @@ export default function NotificationDropdown() {
                   <div className="flex-1">
                     <p className="text-sm text-gray-800 dark:text-gray-200">
                       <span className="font-medium">
-                        {/* {notif.sender?.name || "Système"} */}
+                        {notif.sender?.firstName} {notif.sender?.lastName}
                       </span>{" "}
                       {notif.message || "a interagi avec votre contenu"}
                     </p>
 
-                    {/* Lien cliquable */}
                     {notif.data?.articleId && (
-                      <Link
-                        href={`/articles/${notif.data.articleId}${
-                          notif.data.commentId ? `#comment-${notif.data.commentId}` : ""
-                        }`}
-                        className="block mt-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
-                        onClick={closeDropdown}
+                      <span
+                        onClick={() => handleOpenArticleModal(notif.data.articleId!, notif.data.commentId)}
+                        className="block mt-1 text-xs text-blue-600 hover:underline dark:text-blue-400 cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleOpenArticleModal(notif.data.articleId!, notif.data.commentId);
+                          }
+                        }}
                       >
                         Voir le commentaire →
-                      </Link>
+                      </span>
                     )}
 
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
                       <span>
                         {notif.type === "new_comment"
-                          ? "Commentaire sur article"
+                          ? "Commentaire"
                           : notif.type === "reply"
                           ? "Réponse"
                           : "Mention"}
@@ -330,6 +384,73 @@ export default function NotificationDropdown() {
           Voir toutes les notifications
         </Link>
       </Dropdown>
+
+      {/* Modal de l'article */}
+      <ArticleDetailModal
+        isOpen={isArticleModalOpen}
+        onClose={() => {
+          setIsArticleModalOpen(false);
+          setSelectedArticle(null);
+        }}
+        article={selectedArticle}
+        onLike={async (id: string) => {
+          try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch(`http://localhost:3000/api/articles/${id}/like`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              setSelectedArticle((prev: any) => ({
+                ...prev,
+                isLiked: result.article.isLiked,
+                stats: {
+                  ...prev.stats,
+                  likes: result.article.likesCount
+                }
+              }));
+            }
+          } catch (error) {
+            console.error('Erreur like:', error);
+          }
+        }}
+        onBookmark={async (id: string) => {
+          try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch(`http://localhost:3000/api/articles/${id}/bookmark`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              setSelectedArticle((prev: any) => ({
+                ...prev,
+                isBookmarked: result.article.isBookmarked
+              }));
+            }
+          } catch (error) {
+            console.error('Erreur bookmark:', error);
+          }
+        }}
+        onShare={(id: string) => {
+          const article = selectedArticle;
+          if (!article) return;
+          
+          if (navigator.share) {
+            navigator.share({
+              title: article.title,
+              text: article.description,
+              url: `${window.location.origin}/articles/${id}`,
+            });
+          } else {
+            navigator.clipboard.writeText(`${window.location.origin}/articles/${id}`);
+            alert('Lien copié !');
+          }
+        }}
+      />
     </div>
   );
 }

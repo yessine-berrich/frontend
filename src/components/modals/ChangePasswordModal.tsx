@@ -65,70 +65,74 @@ export default function ChangePasswordModal({
   const isPasswordValid = Object.values(passwordStrength).every(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  e.preventDefault();
+  setError('');
 
-    // Validations
-    if (!currentPassword) {
-      setError('Veuillez entrer votre mot de passe actuel');
-      return;
+  // Validations
+  if (!currentPassword) {
+    setError('Veuillez entrer votre mot de passe actuel');
+    return;
+  }
+
+  if (!newPassword) {
+    setError('Veuillez entrer un nouveau mot de passe');
+    return;
+  }
+
+  if (!isPasswordValid) {
+    setError('Le nouveau mot de passe ne respecte pas les critères de sécurité');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    setError('Les mots de passe ne correspondent pas');
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    setError('Le nouveau mot de passe doit être différent de l\'ancien');
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    const token = localStorage.getItem('auth_token'); // ← Récupérer le token
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    
+    const response = await fetch(`${API_URL}/api/users/${userId}/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`, // ← AJOUTER LE TOKEN
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Erreur lors du changement de mot de passe');
     }
 
-    if (!newPassword) {
-      setError('Veuillez entrer un nouveau mot de passe');
-      return;
-    }
+    setSuccess(true);
+    
+    // Fermer automatiquement après 2 secondes
+    setTimeout(() => {
+      onClose();
+    }, 2000);
 
-    if (!isPasswordValid) {
-      setError('Le nouveau mot de passe ne respecte pas les critères de sécurité');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas');
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setError('Le nouveau mot de passe doit être différent de l\'ancien');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${API_URL}/api/users/${userId}/change-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors du changement de mot de passe');
-      }
-
-      setSuccess(true);
-      
-      // Fermer automatiquement après 2 secondes
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-
-    } catch (error: any) {
-      console.error('Error changing password:', error);
-      setError(error.message || 'Erreur lors du changement de mot de passe');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  } catch (error: any) {
+    console.error('Error changing password:', error);
+    setError(error.message || 'Erreur lors du changement de mot de passe');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   if (!isOpen) return null;
 

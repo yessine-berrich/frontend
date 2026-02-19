@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   Edit, 
@@ -11,7 +12,6 @@ import {
   FileText, 
   BarChart2, 
   TrendingUp,
-  AlertCircle,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -29,7 +29,6 @@ interface CategoriesManagerProps {
   onCreateClick: () => void;
   onEditCategory: (category: Category) => void;
   onDeleteCategory: (id: string | number) => void;
-  onViewArticles: (categoryId: string | number) => void;
 }
 
 export default function CategoriesManager({
@@ -37,8 +36,8 @@ export default function CategoriesManager({
   onCreateClick,
   onEditCategory,
   onDeleteCategory,
-  onViewArticles,
 }: CategoriesManagerProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState<Record<string | number, boolean>>({});
@@ -46,6 +45,11 @@ export default function CategoriesManager({
   const [showStats, setShowStats] = useState(true);
   const [sortBy, setSortBy] = useState<'name' | 'articleCount'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // ✅ NOUVEAU: Navigation vers la page des articles de la catégorie
+  const handleViewArticles = (categoryId: string | number) => {
+    router.push(`/categories/${categoryId}/articles`);
+  };
 
   // Charger le nombre réel d'articles pour chaque catégorie
   useEffect(() => {
@@ -427,7 +431,7 @@ export default function CategoriesManager({
                 {/* Actions */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
                   <button
-                    onClick={() => onViewArticles(category.id)}
+                    onClick={() => handleViewArticles(category.id)}
                     disabled={category.articleCount === 0}
                     className={`flex items-center gap-2 text-sm transition-colors ${
                       category.articleCount > 0
